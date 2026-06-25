@@ -1,17 +1,5 @@
-# Environments
-.env
 .venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# Python cache
 __pycache__/
 *.py[cod]
-*$py.class
-
-# OS generated files
-.DS_Store
-Thumbs.db
+vector_cache.npy
+catalog_cache.pkl
