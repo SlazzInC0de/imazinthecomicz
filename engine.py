@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from abc import ABC, abstractmethod
-from sentence_transformers import SentenceTransformer, util
+from sentence_transformers import SentenceTransformer
 
 class BaseSearchEngine(ABC):
     @abstractmethod
@@ -14,7 +14,8 @@ class BaseSearchEngine(ABC):
 
 class SemanticMatrixEngine(BaseSearchEngine):
     """
-    Hybrid search engine: 70% dense semantic similarity + 30% L1 vibe penalty.
+    Optimized Multiplicative Search Engine: Text search acts as the gatekeeper,
+    while UI sliders act as a 30% contextual fine-tuner.
     """
 
     def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
@@ -28,43 +29,44 @@ class SemanticMatrixEngine(BaseSearchEngine):
             self.catalog = pd.read_pickle(catalog_path)
             self.vector_matrix = np.load(vector_path)
         except FileNotFoundError as exc:
-            # Raise a standard Python error, letting the UI decide how to display it
             raise FileNotFoundError(f"Cache file missing: {exc.filename}")
 
     def search(self, query: str, top_k: int = 5, **kwargs) -> pd.DataFrame:
         user_tone = float(kwargs.get("tone", 0.5))
         user_scope = float(kwargs.get("scope", 0.5))
 
+        # 1. Compute query vector
         query_vector = self._model.encode(
             query,
             convert_to_numpy=True,
             normalize_embeddings=True,
         )
 
-        raw_scores = util.cos_sim(query_vector, self.vector_matrix)
-        semantic_scores = np.array(raw_scores[0].tolist(), dtype=np.float32)
+        # 2. Pure NumPy Cosine Similarity (Eliminates PyTorch list conversion overhead)
+        dot_product = np.dot(self.vector_matrix, query_vector)
+        matrix_norms = np.linalg.norm(self.vector_matrix, axis=1)
+        query_norm = np.linalg.norm(query_vector)
+        
+        # Prevent division by zero
+        matrix_norms[matrix_norms == 0] = 1.0
+        query_norm = 1.0 if query_norm == 0 else query_norm
+        
+        # Raw semantic scores typically fall between -1.0 and 1.0 (mostly > 0 for text)
+        semantic_scores = dot_product / (matrix_norms * query_norm)
+        
+        # Clip negative matches to 0.0 so they don't break percentage math in the UI
+        semantic_scores = np.clip(semantic_scores, 0.0, 1.0)
 
-        s_min, s_max = semantic_scores.min(), semantic_scores.max()
-        if (s_max - s_min) > 1e-9:
-            norm_semantic = (semantic_scores - s_min) / (s_max - s_min)
-        else:
-            norm_semantic = np.ones_like(semantic_scores) * 0.5
-
+        # 3. Calculate absolute distance penalties [0.0 to 1.0] from sliders
         tone_penalties = np.abs(self.catalog["tone_vector"].values - user_tone)
         scope_penalties = np.abs(self.catalog["scope_vector"].values - user_scope)
 
-        raw_composite = (
-            norm_semantic * 0.70
-            - tone_penalties * 0.15
-            - scope_penalties * 0.15
-        )
+        # 4. MULTIPLICATIVE RANKING (The Fix)
+        # Sliders can reduce the raw text match score by a maximum of 30% combined (15% each)
+        vibe_modifier = 1.0 - (tone_penalties * 0.15 + scope_penalties * 0.15)
+        composite_scores = semantic_scores * vibe_modifier
 
-        c_min, c_max = raw_composite.min(), raw_composite.max()
-        if (c_max - c_min) > 1e-9:
-            composite_scores = (raw_composite - c_min) / (c_max - c_min)
-        else:
-            composite_scores = np.ones_like(raw_composite) * 0.5
-
+        # 5. Assemble and Sort Results
         results_df = self.catalog.copy()
         results_df["semantic_score"] = semantic_scores
         results_df["composite_score"] = composite_scores

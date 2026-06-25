@@ -110,8 +110,8 @@ hr {
 }
 .comic-panel h2 { margin: 0 0 8px 0 !important; }
 .results-area { min-height: 200px; }
+
 /* --- FIX INVISIBLE TEXT ON LIGHT BACKGROUND --- */
-/* Target slider labels and standard text */
 [data-testid="stWidgetLabel"] p, 
 [data-testid="stWidgetLabel"] span, 
 [data-testid="stMarkdownContainer"] p,
@@ -120,22 +120,39 @@ hr {
     font-family: 'Comic Neue', cursive !important;
     font-weight: 700 !important;
 }
-
-/* Target the little numbers above the slider thumb */
 [data-baseweb="slider"] div {
     color: #000000 !important;
 }
-
-/* Ensure the text input box has black text when typing */
 input[type="text"] {
     color: #000000 !important;
     background-color: #ffffff !important;
     border: 2px solid #000000 !important;
 }
+
+/* --- SEARCH BUTTON STYLING --- */
+button[kind="secondaryFormSubmit"] {
+    background-color: #ffe81f !important;
+    color: #000000 !important;
+    border: 2px solid #000 !important;
+    font-family: 'Bangers', cursive !important;
+    font-size: 1.2rem !important;
+    letter-spacing: 1px;
+    box-shadow: 3px 3px 0 #000 !important;
+    transition: all 0.1s;
+}
+button[kind="secondaryFormSubmit"]:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 5px 5px 0 #000 !important;
+}
+button[kind="secondaryFormSubmit"]:active {
+    transform: translate(2px, 2px);
+    box-shadow: 1px 1px 0 #000 !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🦸 IMAZINTHECOMICS // VECTOR INDEX")
+# TITLE UPDATED
+st.title("🦸 IMAZINTHECOMICS")
 st.markdown("**THE AI-POWERED COMIC RECOMMENDATION ENGINE!**")
 st.markdown('<hr>', unsafe_allow_html=True)
 
@@ -161,21 +178,26 @@ with col_controls:
     st.markdown("### 🕵️‍♂️ TECH SPECS")
     st.markdown(
         "**Model:** `all-MiniLM-L6-v2`\n\n"
-        "**Architecture:** Hybrid Cosine + L1 Vibe Penalty\n\n"
-        "**Scoring:** Normalised composite [0 → 1]\n\n"
+        "**Architecture:** Multiplicative Semantic Matrix\n\n"
         "**Catalog:** `catalog_cache.pkl`"
     )
 
 with col_display:
     st.markdown("### 💭 WHAT ARE YOU LOOKING FOR?")
-    user_query = st.text_input(
-        "Type your hyper-specific vibe here...",
-        placeholder="e.g., A street-level vigilante fighting organised crime in a neon-lit city...",
-    )
+    
+    # SEARCH BAR FIX: Wrapped inside an st.form
+    with st.form(key="search_form"):
+        user_query = st.text_input(
+            "Query Input", # Invisible label for screen readers
+            placeholder="e.g., A blind lawyer fighting crime in Hell's Kitchen...",
+            label_visibility="collapsed"
+        )
+        submit_button = st.form_submit_button(label="💥 SEARCH ARCHIVES")
 
     st.markdown('<div class="results-area">', unsafe_allow_html=True)
 
-    if user_query:
+    # Will only execute when the button is pressed
+    if submit_button and user_query:
         with st.spinner("BAM! Calculating vectors..."):
             results = engine.search(
                 query=user_query,
@@ -208,7 +230,7 @@ with col_display:
 </div>
 """, unsafe_allow_html=True)
 
-    else:
-        st.info("System standby. Awaiting query input...")
+    elif not submit_button:
+        st.info("System standby. Enter a query and smash the search button!")
 
     st.markdown('</div>', unsafe_allow_html=True)

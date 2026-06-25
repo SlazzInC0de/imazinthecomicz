@@ -1,8 +1,8 @@
 """
-Build the IMAZINTHECOMICS vector index.
+Build the IMAZINTHECOMICS vector index from a real CSV.
 """
 import os
-import pickle
+import pandas as pd
 import numpy as np
 from engine import SemanticMatrixEngine
 
@@ -12,24 +12,53 @@ def build_pipeline():
     catalog_path = os.environ.get("IMAZIN_CATALOG", "catalog_cache.pkl")
     vector_path = os.environ.get("IMAZIN_VECTORS", "vector_cache.npy")
     
-    # MOCK DATA - Replace this with your actual Pandas DataFrame/CSV loading logic
-    import pandas as pd
-    mock_catalog = pd.DataFrame([
-        {"Title": "Batman: Year One", "Writer": "Frank Miller", "Artist": "David Mazzucchelli", "Studio/Publisher": "DC", "Release Year": "1987", "semantic_doc": "A gritty, down-to-earth take on Bruce Wayne's first year.", "tone_vector": 0.9, "scope_vector": 0.1},
-        {"Title": "Watchmen", "Writer": "Alan Moore", "Artist": "Dave Gibbons", "Studio/Publisher": "DC", "Release Year": "1986", "semantic_doc": "A complex, philosophical deconstruction of superhero tropes.", "tone_vector": 0.8, "scope_vector": 0.5},
-    ])
+    print("📂 Loading database from comics.csv...")
+    try:
+        catalog = pd.read_csv("comics.csv")
+    except FileNotFoundError:
+        print("❌ Error: Could not find 'comics.csv'. Make sure the file is in the same folder!")
+        return
+        
+    # ---------------------------------------------------------
+    # MAGIC FIX: GENERATING SYNTHETIC DESCRIPTIONS
+    # ---------------------------------------------------------
+    print("🪄 Generating synthetic semantic descriptions from metadata...")
     
-    print(f"✨ Processing {len(mock_catalog)} comic entries...")
+    # Clean up empty cells to prevent 'nan' showing up in the text
+    catalog.fillna("Unknown", inplace=True)
+    
+    # This stitches your specific columns into a readable paragraph for the AI
+    def build_description(row):
+        genre = row.get('Genre', 'Unknown')
+        title = row.get('Title', 'Unknown')
+        writer = row.get('Writer', 'Unknown')
+        artist = row.get('Artist', 'Unknown')
+        publisher = row.get('Studio/Publisher', 'Unknown')
+        theme = row.get('Theme (Color Style)', 'Unknown')
+        
+        return f"A {genre} comic titled '{title}', written by {writer} and illustrated by {artist}. Published by {publisher}. Visual theme: {theme}."
+
+    # Apply the function to create our required 'semantic_doc' column
+    catalog['semantic_doc'] = catalog.apply(build_description, axis=1)
+    # ---------------------------------------------------------
+
+    # Ensure tone and scope vectors exist (default to 0.5 so sliders don't crash)
+    if "tone_vector" not in catalog.columns:
+        catalog["tone_vector"] = 0.5
+    if "scope_vector" not in catalog.columns:
+        catalog["scope_vector"] = 0.5
+        
+    print(f"✨ Processing {len(catalog)} comic entries... (This might take a minute for 2000+ rows!)")
     engine = SemanticMatrixEngine(model_name="all-MiniLM-L6-v2")
     
-    # Compute embeddings
-    descriptions = mock_catalog["semantic_doc"].tolist()
+    # Compute embeddings for all generated descriptions
+    descriptions = catalog["semantic_doc"].tolist()
     vectors = engine._model.encode(descriptions, show_progress_bar=True)
     
-    # Save files
-    mock_catalog.to_pickle(catalog_path)
+    # Save the new massive database to the cache files
+    catalog.to_pickle(catalog_path)
     np.save(vector_path, np.array(vectors))
-    print(f"💾 Successfully cached catalog to '{catalog_path}' and vectors to '{vector_path}'.")
+    print(f"💾 Successfully cached {len(catalog)} comics to '{catalog_path}' and '{vector_path}'.")
 
 if __name__ == "__main__":
     build_pipeline()
