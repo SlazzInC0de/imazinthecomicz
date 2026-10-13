@@ -1,9 +1,9 @@
 """
-test_vibe.py — Smoke-test the IMAZINTHECOMICS production pipeline.
+smoke_test.py — Smoke-test the IMAZINTHECOMICS production pipeline.
 
 Usage:
-    python test_vibe.py
-    python test_vibe.py --query "cosmic horror featuring Lovecraftian elder gods" --tone 0.9 --scope 0.8
+    python smoke_test.py
+    python smoke_test.py --query "cosmic horror featuring Lovecraftian elder gods" --tone 0.9 --scope 0.8
 """
 
 import argparse

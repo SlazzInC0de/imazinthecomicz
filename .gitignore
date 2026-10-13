@@ -1,5 +1,9 @@
-.venv
+.venv/
 __pycache__/
 *.py[cod]
-vector_cache.npy
-catalog_cache.pkl
+.pytest_cache/
+.streamlit/secrets.toml
+.DS_Store
+
+# catalog_cache.pkl and vector_cache.npy are committed on purpose:
+# they let the app start without re-embedding 10k titles.
