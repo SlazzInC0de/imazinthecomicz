@@ -5,6 +5,7 @@ import os
 import pandas as pd
 import numpy as np
 from engine import SemanticMatrixEngine
+from vibe import add_vibe_features
 
 def build_pipeline():
     print("📦 Starting IMAZINTHECOMICS index generation pipeline...")
@@ -42,11 +43,8 @@ def build_pipeline():
     catalog['semantic_doc'] = catalog.apply(build_description, axis=1)
     # ---------------------------------------------------------
 
-    # Ensure tone and scope vectors exist (default to 0.5 so sliders don't crash)
-    if "tone_vector" not in catalog.columns:
-        catalog["tone_vector"] = 0.5
-    if "scope_vector" not in catalog.columns:
-        catalog["scope_vector"] = 0.5
+    # Derive tone (campy -> grimdark) and scope (street -> cosmic) from genre + age rating
+    catalog = add_vibe_features(catalog)
         
     print(f"✨ Processing {len(catalog)} comic entries... (This might take a minute for 2000+ rows!)")
     engine = SemanticMatrixEngine(model_name="all-MiniLM-L6-v2")
