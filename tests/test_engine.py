@@ -64,3 +64,38 @@ def test_slider_penalty_is_capped_at_30_percent():
     row = eng.search("q", top_k=1, tone=1.0, scope=1.0).iloc[0]
     assert np.isclose(row["semantic_score"], 1.0)
     assert np.isclose(row["composite_score"], 0.7)
+
+
+def test_init_loads_named_model(monkeypatch):
+    import engine as engine_module
+
+    loaded = {}
+    monkeypatch.setattr(engine_module, "SentenceTransformer", lambda name: loaded.setdefault("name", name))
+    SemanticMatrixEngine(model_name="all-MiniLM-L6-v2")
+    assert loaded["name"] == "all-MiniLM-L6-v2"
+
+
+def test_index_catalog_loads_cached_files(tmp_path):
+    catalog = pd.DataFrame({"Title": ["A", "B"], "tone_vector": [0.1, 0.9], "scope_vector": [0.5, 0.5]})
+    catalog.to_pickle(tmp_path / "catalog.pkl")
+    np.save(tmp_path / "vectors.npy", np.eye(2))
+
+    eng = SemanticMatrixEngine.__new__(SemanticMatrixEngine)
+    eng.index_catalog(str(tmp_path / "catalog.pkl"), str(tmp_path / "vectors.npy"))
+    assert list(eng.catalog["Title"]) == ["A", "B"]
+    assert eng.vector_matrix.shape == (2, 2)
+
+
+def test_missing_cache_file_names_the_file(tmp_path):
+    import pytest
+
+    eng = SemanticMatrixEngine.__new__(SemanticMatrixEngine)
+    with pytest.raises(FileNotFoundError, match="nope.pkl"):
+        eng.index_catalog(str(tmp_path / "nope.pkl"), str(tmp_path / "nope.npy"))
+
+
+def test_zero_vectors_do_not_divide_by_zero():
+    eng = _engine([[0, 0], [1, 0]], [0.5, 0.5], [0.5, 0.5], query=[1, 0])
+    results = eng.search("q", top_k=2)
+    assert np.isfinite(results["composite_score"]).all()
+    assert results.iloc[0]["Title"] == "T1"

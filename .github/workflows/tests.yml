@@ -9,9 +9,15 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install pandas numpy pytest
-      - run: pytest -v
+      - run: pip install pandas numpy pytest pytest-cov
+      - name: Tests with coverage
+        shell: bash
+        run: pytest -v --cov=engine --cov=vibe --cov-report=term-missing | tee pytest-output.txt
+      - name: Publish coverage
+        if: always()
+        run: |
+          { echo "## Coverage"; echo '```'; sed -n '/coverage:/,/TOTAL/p' pytest-output.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

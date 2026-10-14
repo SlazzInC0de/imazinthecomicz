@@ -7,3 +7,4 @@ __pycache__/
 
 # catalog_cache.pkl and vector_cache.npy are committed on purpose:
 # they let the app start without re-embedding 10k titles.
+.coverage
