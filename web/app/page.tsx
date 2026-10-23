@@ -7,8 +7,7 @@ import type { BrowseResponse, Facets } from "@/lib/types";
 
 import styles from "./home.module.css";
 
-// rendered per request so an API outage is never cached; the fetches themselves are cached for an hour
-export const dynamic = "force-dynamic";
+// Rendered per request (see layout), so an API outage is never cached; the fetches themselves are cached for an hour.
 
 const EXAMPLES = [
   "a detective who can see ghosts",

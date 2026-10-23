@@ -4,9 +4,7 @@ import "./globals.css";
 
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
-
-// Every page renders per request so it can carry the CSP nonce from proxy.ts.
-export const dynamic = "force-dynamic";
+import { connection } from "next/server";
 
 const SITE_URL = process.env.SITE_URL ?? "http://localhost:3000";
 
@@ -27,7 +25,10 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = { themeColor: "#fcfcfa" };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Render every page at request time so it carries the CSP nonce from proxy.ts.
+  // Unlike `dynamic = "force-dynamic"`, this keeps each fetch's own cache setting.
+  await connection();
   return (
     <html lang="en">
       <body>

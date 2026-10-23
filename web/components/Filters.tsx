@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
 import type { Facets } from "@/lib/types";
@@ -69,6 +70,7 @@ function Vibe(props: {
 
 export default function Filters({ state, facets }: { state: FilterState; facets: Facets | null }) {
   const form = useRef<HTMLFormElement>(null);
+  const router = useRouter();
   const submit = () => form.current?.requestSubmit();
   const genres = facets ? Object.keys(facets.genres) : [];
   const browsing = !state.q;
@@ -82,11 +84,13 @@ export default function Filters({ state, facets }: { state: FilterState; facets:
       aria-label="Filters"
       onSubmit={(e) => {
         // leave empty fields out of the URL (?q=x&kind=Manga, not &year_min=&status=)
-        for (const el of Array.from(e.currentTarget.elements)) {
-          if ((el instanceof HTMLInputElement || el instanceof HTMLSelectElement) && el.name && el.value === "") {
-            el.disabled = true;
-          }
-        }
+        // without touching the controls, so Back restores them as they were
+        e.preventDefault();
+        const params = new URLSearchParams();
+        new FormData(e.currentTarget).forEach((value, name) => {
+          if (typeof value === "string" && value !== "") params.append(name, value);
+        });
+        router.push(params.size ? `/search?${params}` : "/search");
       }}
     >
       {state.q && <input type="hidden" name="q" value={state.q} />}

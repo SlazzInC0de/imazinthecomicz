@@ -130,7 +130,10 @@ def main() -> int:
                 out.write(json.dumps(vol, ensure_ascii=False) + "\n")
                 written += 1
             offset += 100
-            if written >= args.max or budget.used >= args.max_requests or offset >= page["number_of_total_results"]:
+            if written >= args.max or offset >= page["number_of_total_results"]:
+                break
+            if budget.used >= args.max_requests:  # stopped by the cap, not finished
+                complete = False
                 break
             try:
                 page = get(session, budget, "volumes", {**base, "sort": "count_of_issues:desc", "offset": offset})

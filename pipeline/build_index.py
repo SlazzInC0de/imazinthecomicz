@@ -19,6 +19,15 @@ import pandas as pd
 MODEL = "BAAI/bge-small-en-v1.5"
 
 
+def catalog_meta(df: pd.DataFrame) -> dict:
+    return {
+        "titles": int(len(df)),
+        "by_kind": {k: int(v) for k, v in df["kind"].value_counts().items()},
+        "by_source": {k: int(v) for k, v in df["source"].value_counts().items()},
+        "built_at": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d"),
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--catalog", default="data/catalog.parquet")
@@ -34,7 +43,11 @@ def main() -> int:
         with open(args.meta, encoding="utf-8") as fh:
             old = json.load(fh)
         if old.get("docs_sha256") == digest:
-            print("Catalog text unchanged, keeping the existing embeddings.")
+            # other catalog fields (counts, status) may still have changed
+            old.update(catalog_meta(df))
+            with open(args.meta, "w", encoding="utf-8") as fh:
+                json.dump(old, fh, indent=2)
+            print("Catalog text unchanged, kept the embeddings and refreshed meta.json.")
             return 0
 
     from fastembed import TextEmbedding
@@ -45,15 +58,7 @@ def main() -> int:
     # float16 halves the file size; cosine scores move by less than 0.001
     np.save(args.out, vectors.astype(np.float16))
 
-    meta = {
-        "model": MODEL,
-        "dimensions": int(vectors.shape[1]),
-        "titles": int(len(df)),
-        "by_kind": {k: int(v) for k, v in df["kind"].value_counts().items()},
-        "by_source": {k: int(v) for k, v in df["source"].value_counts().items()},
-        "built_at": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d"),
-        "docs_sha256": digest,
-    }
+    meta = {"model": MODEL, "dimensions": int(vectors.shape[1]), **catalog_meta(df), "docs_sha256": digest}
     with open(args.meta, "w", encoding="utf-8") as fh:
         json.dump(meta, fh, indent=2)
     print(f"Embedded {len(df)} titles with {MODEL}: {vectors.shape}")

@@ -61,16 +61,19 @@ class Client:
                 resp = self.session.get(url if url.startswith("http") else f"{BASE}/{url}", params=params,
                                         timeout=60)
             except requests.RequestException as exc:  # timeouts, resets
-                print(f"  network error ({exc.__class__.__name__}), retrying", flush=True)
-                time.sleep(10 * (attempt + 1))
+                print(f"  network error ({exc.__class__.__name__})", flush=True)
+                if attempt < 5:  # no point waiting after the last attempt
+                    time.sleep(10 * (attempt + 1))
                 continue
             if resp.status_code == 429:
                 pause = int(resp.headers.get("Retry-After", "65"))
                 print(f"  rate limited, waiting {pause}s", flush=True)
-                time.sleep(pause + 1)
+                if attempt < 5:
+                    time.sleep(pause + 1)
                 continue
             if resp.status_code >= 500:
-                time.sleep(10 * (attempt + 1))
+                if attempt < 5:
+                    time.sleep(10 * (attempt + 1))
                 continue
             if resp.status_code in (401, 403):
                 print(f"::error::Metron refused the token ({resp.status_code}). Check the METRON_* secrets.")
