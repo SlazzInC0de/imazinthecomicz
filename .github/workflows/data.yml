@@ -2,6 +2,7 @@ name: Build catalog
 
 # Fetches titles, builds the catalog and the embedding index, runs the
 # retrieval benchmark and commits the results back to the branch.
+# Sources: AniList (manga, manhwa, manhua), Metron and Comic Vine (Western).
 # Raw API dumps are cached in data/raw, so a source is only fetched again
 # when its dump is missing or a manual run asks for a refresh.
 
