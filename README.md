@@ -11,7 +11,7 @@
 
 Keyword search fails on queries like *"a detective who can see ghosts"* when the synopsis says *"spirits"* and *"murder cases"*. This project ranks real titles by what their synopsis is about, and still finds a series when you type its name.
 
-**Catalog:** 16,954 titles: 12,190 manga, 3,160 manhwa, 926 manhua (AniList) and 678 Western series (Metron), each with a synopsis, genres and a cover.
+**Catalog:** 16,964 titles: 12,201 manga, 3,160 manhwa, 925 manhua (AniList) and 678 Western series (Metron), each with a synopsis, genres and a cover.
 
 ## What changed in v2
 
@@ -57,10 +57,10 @@ flowchart LR
 |---|---:|---:|---:|
 | Random | 0.04 | 0.04 | n/a |
 | Keyword (BM25) | 0.50 | 0.44 | 0.69 |
-| Semantic (embeddings) | 0.50 | 0.46 | 0.73 |
+| Semantic (embeddings) | 0.49 | 0.45 | 0.72 |
 | **Hybrid (served)** | **0.57** | **0.49** | **0.79** |
 
-On descriptive queries alone the blend lifts P@5 from 0.45 (keyword) and 0.46 (semantic) to 0.53. Typing a series name puts it first every time (MRR 1.00).
+On descriptive queries alone the blend lifts P@5 from 0.45 (keyword and semantic alike) to 0.53. Typing a series name puts it first every time (MRR 1.00).
 
 What the numbers do not show:
 
