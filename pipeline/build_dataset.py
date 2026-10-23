@@ -217,7 +217,9 @@ def build(anilist: list, comicvine: list, metron: list | None = None) -> pd.Data
     rank = df["source"].map({"AniList": 0, "Comic Vine": 1, "Metron": 2})
     best = rank.groupby(df["_key"]).transform("min")
     df = df[rank == best].drop(columns="_key")
-    df = df.sort_values("popularity", ascending=False).reset_index(drop=True)
+    # popularity, then id: a fixed row order keeps the docs hash stable, so
+    # build_index.py can skip re-embedding when nothing really changed
+    df = df.sort_values(["popularity", "id"], ascending=[False, True], kind="stable").reset_index(drop=True)
     df["tone"] = to_percentiles(df["tone_raw"]).round(4)
     df["scope"] = to_percentiles(df["scope_raw"]).round(4)
     df = df.drop(columns=["tone_raw", "scope_raw"])

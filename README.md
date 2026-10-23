@@ -57,7 +57,7 @@ flowchart LR
 |---|---:|---:|---:|
 | Random | 0.04 | 0.04 | n/a |
 | Keyword (BM25) | 0.50 | 0.44 | 0.69 |
-| Semantic (embeddings) | 0.49 | 0.45 | 0.72 |
+| Semantic (embeddings) | 0.49 | 0.45 | 0.73 |
 | **Hybrid (served)** | **0.57** | **0.49** | **0.79** |
 
 On descriptive queries alone the blend lifts P@5 from 0.45 (keyword and semantic alike) to 0.53. Typing a series name puts it first every time (MRR 1.00).
