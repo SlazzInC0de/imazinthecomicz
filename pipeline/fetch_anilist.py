@@ -24,10 +24,10 @@ import requests
 URL = "https://graphql.anilist.co"
 
 QUERY = """
-query ($page: Int, $perPage: Int, $below: Int) {
+query ($page: Int, $perPage: Int__BELOW_VAR__) {
   Page(page: $page, perPage: $perPage) {
     pageInfo { hasNextPage }
-    media(type: MANGA, sort: POPULARITY_DESC, isAdult: false, popularity_lesser: $below) {
+    media(type: MANGA, sort: POPULARITY_DESC, isAdult: false__BELOW_ARG__) {
       id
       title { romaji english native }
       synonyms
@@ -56,9 +56,14 @@ WINDOW = 5000
 
 
 def fetch_page(session: requests.Session, page: int, per_page: int, below: int | None) -> dict:
-    variables = {"page": page, "perPage": per_page, "below": below}
+    # AniList rejects popularity_lesser: null, so the filter is only added when set
+    variables = {"page": page, "perPage": per_page}
+    query = QUERY.replace("__BELOW_VAR__", "").replace("__BELOW_ARG__", "")
+    if below is not None:
+        variables["below"] = below
+        query = QUERY.replace("__BELOW_VAR__", ", $below: Int").replace("__BELOW_ARG__", ", popularity_lesser: $below")
     for attempt in range(8):
-        resp = session.post(URL, json={"query": QUERY, "variables": variables}, timeout=60)
+        resp = session.post(URL, json={"query": query, "variables": variables}, timeout=60)
         if resp.status_code == 429:
             wait = int(resp.headers.get("Retry-After", "60")) + 1
             print(f"  rate limited, waiting {wait}s", flush=True)
