@@ -12,7 +12,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE_URL}/about`, changeFrequency: "monthly", priority: 0.5 },
   ];
   try {
-    const { ids } = await api<{ ids: string[] }>("/api/ids", new URLSearchParams({ limit: "5000" }), {
+    const { ids } = await api<{ ids: string[] }>("/api/ids", new URLSearchParams({ limit: "20000" }), {
       revalidate: 86400,
     });
     for (const id of ids) pages.push({ url: `${SITE_URL}/comic/${id}`, changeFrequency: "monthly", priority: 0.7 });

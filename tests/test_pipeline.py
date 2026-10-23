@@ -121,7 +121,7 @@ def test_anilist_walks_past_the_5000_cap(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "argv", ["x", "--max", "11000", "--out", str(out)])
     assert fetch_anilist.main() == 0
     ids = [json.loads(line)["id"] for line in gzip.open(out, "rt")]
-    assert len(ids) == len(set(ids)) >= 11000
+    assert len(ids) == len(set(ids)) == 11000
     assert ids[:11000] == list(range(11000))
 
 
@@ -135,7 +135,57 @@ def test_metron_row_maps_genres_and_status():
               "cover": "https://static.metron.cloud/x.jpg", "resource_url": "https://metron.cloud/series/saga/"}
     row = metron_row(series)
     assert row["id"] == "mt-42" and row["kind"] == "Western" and row["status"] == "Ongoing"
+    assert metron_row({**series, "status": "Cancelled", "year_end": 2020})["status"] == "Cancelled"
     assert row["genres"][:2] == ["Sci-Fi", "Romance"] and row["length"] == 66
     assert metron_row({**series, "desc": "short"}) is None
     df = build([], [], [series])
     assert df.iloc[0]["source"] == "Metron"
+
+
+def test_anilist_steps_past_a_huge_tie_and_keeps_old_cache_on_failure(tmp_path, monkeypatch):
+    import gzip
+    import json
+
+    import fetch_anilist
+
+    # 6,000 titles share one popularity value, more than one 5,000 window can hold
+    items = [{"id": i, "popularity": 900} for i in range(6000)] + [{"id": 6000 + i, "popularity": 500 - i}
+                                                                   for i in range(300)]
+
+    def fake_page(session, page, per_page, below):
+        pool = [m for m in items if below is None or m["popularity"] < below]
+        if page * per_page > 5000:
+            raise RuntimeError("cap")
+        chunk = pool[(page - 1) * per_page: page * per_page]
+        return {"media": chunk, "pageInfo": {"hasNextPage": page * per_page < len(pool)}}
+
+    out = tmp_path / "a.jsonl.gz"
+    monkeypatch.setattr(fetch_anilist, "fetch_page", fake_page)
+    monkeypatch.setattr(fetch_anilist.time, "sleep", lambda s: None)
+    monkeypatch.setattr(sys, "argv", ["x", "--max", "100000", "--out", str(out)])
+    assert fetch_anilist.main() == 0
+    got = {json.loads(line)["id"] for line in gzip.open(out, "rt")}
+    assert set(range(6000, 6300)) <= got  # the walk got past the tie block
+
+    # a failed refresh leaves the previous cache untouched
+    before = out.read_bytes()
+
+    def broken(*a, **k):
+        if broken.calls:
+            raise RuntimeError("API down")
+        broken.calls += 1
+        return fake_page(*a, **k)
+
+    broken.calls = 0
+    monkeypatch.setattr(fetch_anilist, "fetch_page", broken)
+    fetch_anilist.main()
+    assert out.read_bytes() == before
+
+
+def test_dedupe_only_across_sources():
+    vol = {"id": 9, "name": "Night Walker", "deck": "", "description": "A hero walks a ruined city. " * 6,
+           "start_year": "2011", "publisher": {"name": "Image"}, "count_of_issues": 40, "image": {},
+           "site_detail_url": "u"}
+    one_shot = media(id=5, format="ONE_SHOT")  # same title and year as media(), but a different work
+    df = build([media(), one_shot], [vol])
+    assert sorted(df["id"]) == ["al-1", "al-5"]  # the Comic Vine copy goes, both AniList entries stay

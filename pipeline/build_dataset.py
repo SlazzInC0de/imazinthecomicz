@@ -156,7 +156,9 @@ def metron_row(series: dict) -> dict | None:
             genres.append(g)
     tone, scope = raw_scores(genres, [])
     series_type = ((series.get("series_type") or {}).get("name") or "")
-    status = "Completed" if series.get("year_end") else ("Cancelled" if "cancel" in series_type.lower() else "Ongoing")
+    status = series.get("status") if series.get("status") in STATUS.values() else None
+    if status is None:  # older dumps without the field
+        status = "Completed" if series.get("year_end") else "Ongoing"
     issues = series.get("issue_count") or 0
     return {
         "id": f"mt-{series['id']}",
@@ -210,8 +212,11 @@ def build(anilist: list, comicvine: list, metron: list | None = None) -> pd.Data
     df = pd.DataFrame(rows).drop_duplicates("id")
     # Same title and year from two sources: keep one (AniList, then Comic Vine, then Metron).
     df["_key"] = df["title"].str.lower().str.replace(r"[^a-z0-9]", "", regex=True) + df["year"].astype(str)
-    order = {"AniList": 0, "Comic Vine": 1, "Metron": 2}
-    df = df.sort_values("source", key=lambda col: col.map(order)).drop_duplicates("_key").drop(columns="_key")
+    # Only drop cross-source copies: two AniList entries with one title and year
+    # (a series and its one-shot, say) are different works and both stay.
+    rank = df["source"].map({"AniList": 0, "Comic Vine": 1, "Metron": 2})
+    best = rank.groupby(df["_key"]).transform("min")
+    df = df[rank == best].drop(columns="_key")
     df = df.sort_values("popularity", ascending=False).reset_index(drop=True)
     df["tone"] = to_percentiles(df["tone_raw"]).round(4)
     df["scope"] = to_percentiles(df["scope_raw"]).round(4)

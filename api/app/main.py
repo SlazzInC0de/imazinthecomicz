@@ -44,27 +44,22 @@ def create_app(settings: Settings | None = None, catalog: Catalog | None = None)
         redoc_url=None,
         openapi_url="/openapi.json" if settings.enable_docs else None,
     )
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.allowed_origins,
-        allow_methods=["GET"],
-        allow_headers=[],
-        max_age=600,
-    )
-
     @app.middleware("http")
     async def guard(request: Request, call_next):
         if request.url.path.startswith("/api/"):
             key = client_key(request, settings.proxy_key, settings.trust_forwarded_for)
             allowed, retry = bucket.allow(key) if key else (True, 0.0)
-            if not allowed:
-                return JSONResponse({"detail": "Too many requests, slow down a little."}, status_code=429,
+        else:
+            allowed, retry = True, 0.0
+        if not allowed:
+            response = JSONResponse({"detail": "Too many requests, slow down a little."}, status_code=429,
                                     headers={"Retry-After": str(int(retry) + 1)})
-        try:
-            response = await call_next(request)
-        except Exception:  # never leak stack traces to clients
-            log.exception("unhandled error on %s", request.url.path)
-            response = JSONResponse({"detail": "Something went wrong."}, status_code=500)
+        else:
+            try:
+                response = await call_next(request)
+            except Exception:  # never leak stack traces to clients
+                log.exception("unhandled error on %s", request.url.path)
+                response = JSONResponse({"detail": "Something went wrong."}, status_code=500)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
@@ -74,6 +69,16 @@ def create_app(settings: Settings | None = None, catalog: Catalog | None = None)
         if request.method == "GET" and response.status_code == 200 and request.url.path.startswith("/api/"):
             response.headers.setdefault("Cache-Control", "public, max-age=300")
         return response
+
+    # Added last so it wraps the guard: 429s and errors still carry CORS headers.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.allowed_origins,
+        allow_methods=["GET"],
+        allow_headers=[],
+        expose_headers=["Retry-After"],
+        max_age=600,
+    )
 
     def catalog_of(request: Request) -> Catalog:
         return request.app.state.catalog
@@ -140,6 +145,8 @@ def create_app(settings: Settings | None = None, catalog: Catalog | None = None)
         limit: int = Query(24, ge=1, le=48),
         offset: int = Query(0, ge=0, le=5000),
     ):
+        if any(len(g) > 40 for g in genre):
+            raise HTTPException(422, "Genre name too long.")
         cat = catalog_of(request)
         idx, total = cat.browse(filters(kind, genre, year_min, year_max, status, min_score), sort, limit, offset)
         return {"total": total, "offset": offset, "results": [cat.card(i) for i in idx]}

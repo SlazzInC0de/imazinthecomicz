@@ -26,20 +26,21 @@ const SHELVES: { kind: string; title: string }[] = [
 ];
 
 async function load() {
-  try {
-    const facets = await api<Facets>("/api/facets", undefined, { revalidate: 3600 });
-    const shelves = await Promise.all(
-      SHELVES.filter((s) => (facets.kinds[s.kind] ?? 0) > 0).map(async (s) => ({
-        ...s,
-        items: (await api<BrowseResponse>("/api/browse", new URLSearchParams({ kind: s.kind, limit: "12" }), {
+  const facets = await api<Facets>("/api/facets", undefined, { revalidate: 3600 }).catch(() => null);
+  if (!facets) return { facets: null, shelves: [] };
+  // each shelf loads on its own, so one failed category does not hide the others
+  const settled = await Promise.allSettled(
+    SHELVES.filter((s) => (facets.kinds[s.kind] ?? 0) > 0).map(async (s) => ({
+      ...s,
+      items: (
+        await api<BrowseResponse>("/api/browse", new URLSearchParams({ kind: s.kind, limit: "12" }), {
           revalidate: 3600,
-        })).results,
-      })),
-    );
-    return { facets, shelves };
-  } catch {
-    return { facets: null, shelves: [] };
-  }
+        })
+      ).results,
+    })),
+  );
+  const shelves = settled.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+  return { facets, shelves };
 }
 
 export default async function Home() {

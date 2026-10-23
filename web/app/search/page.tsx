@@ -12,6 +12,7 @@ import styles from "./search.module.css";
 
 const PAGE_SIZE = 24;
 const MAX_SEARCH_PAGES = 4; // the API ranks the best 96 matches
+const MAX_BROWSE_PAGES = Math.floor(5000 / PAGE_SIZE) + 1; // the API accepts offsets up to 5,000
 
 type Params = Promise<Record<string, string | string[] | undefined>>;
 
@@ -24,20 +25,22 @@ function many(v: string | string[] | undefined): string[] {
 }
 
 function readState(sp: Record<string, string | string[] | undefined>): FilterState & { page: number } {
-  const num = (s: string) => (/^\d{1,4}$/.test(s) ? s : "");
+  // same ranges the API enforces, so a hand-edited URL never turns into a 422
+  const num = (s: string, min: number, max: number) =>
+    /^\d{1,4}$/.test(s) && Number(s) >= min && Number(s) <= max ? s : "";
   const unit = (s: string) => (/^(0(\.\d+)?|1(\.0+)?)$/.test(s) ? s : "");
   return {
     q: one(sp.q).slice(0, 200),
     kind: many(sp.kind).filter((k) => ["Manga", "Manhwa", "Manhua", "Western"].includes(k)),
     genre: many(sp.genre).slice(0, 6),
-    year_min: num(one(sp.year_min)),
-    year_max: num(one(sp.year_max)),
+    year_min: num(one(sp.year_min), 1900, 2100),
+    year_max: num(one(sp.year_max), 1900, 2100),
     status: one(sp.status),
-    min_score: num(one(sp.min_score)),
+    min_score: num(one(sp.min_score), 0, 100),
     tone: unit(one(sp.tone)),
     scope: unit(one(sp.scope)),
     sort: ["popular", "score", "newest"].includes(one(sp.sort)) ? one(sp.sort) : "",
-    page: Math.max(1, Math.min(200, parseInt(one(sp.page) || "1", 10) || 1)),
+    page: Math.max(1, Math.min(MAX_BROWSE_PAGES, parseInt(one(sp.page) || "1", 10) || 1)),
   };
 }
 
@@ -65,6 +68,9 @@ export async function generateMetadata({ searchParams }: { searchParams: Params 
 
 export default async function SearchPage({ searchParams }: { searchParams: Params }) {
   const state = readState(await searchParams);
+  if (state.year_min && state.year_max && Number(state.year_min) > Number(state.year_max)) {
+    [state.year_min, state.year_max] = [state.year_max, state.year_min];
+  }
   const apiParams = toParams(state);
   apiParams.delete("sort");
   apiParams.set("limit", String(PAGE_SIZE));
@@ -79,8 +85,9 @@ export default async function SearchPage({ searchParams }: { searchParams: Param
   let data: SearchResponse | BrowseResponse | null = null;
   let error: string | null = null;
   const tooDeep = state.q !== "" && state.page > MAX_SEARCH_PAGES;
+  // facets only feed the filter counts; results still load without them
+  facets = await api<Facets>("/api/facets", undefined, { revalidate: 3600 }).catch(() => null);
   try {
-    facets = await api<Facets>("/api/facets", undefined, { revalidate: 3600 });
     if (!tooDeep) {
       data = state.q
         ? await api<SearchResponse>("/api/search", apiParams, { visitor: true })
@@ -94,7 +101,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Param
 
   const results = data?.results ?? [];
   const total = data?.total ?? 0;
-  const pages = Math.min(Math.ceil(total / PAGE_SIZE), state.q ? MAX_SEARCH_PAGES : 200);
+  const pages = Math.min(Math.ceil(total / PAGE_SIZE), state.q ? MAX_SEARCH_PAGES : MAX_BROWSE_PAGES);
   const keep: [string, string][] = [...toParams({ ...state, q: "" }).entries()].filter(([k]) => k !== "sort");
   const firstPageSearch = state.q && state.page === 1;
   const filtersActive = keep.length > 0;

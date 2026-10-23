@@ -9,14 +9,22 @@ on:
   push:
     branches: [main]
     paths: ["api/**", "data/**", ".github/workflows/deploy-api.yml"]
+  # The catalog workflow commits data with GITHUB_TOKEN, which does not start
+  # push workflows, so a finished catalog build triggers the deploy directly.
+  workflow_run:
+    workflows: ["Build catalog"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: ${{ vars.HF_SPACE != '' }}
+    if: ${{ vars.HF_SPACE != '' && (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success') }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: main  # includes the data commit the catalog build just pushed
       - name: Assemble space
         run: |
           mkdir -p space/api space/data

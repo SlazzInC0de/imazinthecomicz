@@ -8,6 +8,8 @@ from fastapi import Request
 
 class TokenBucket:
     def __init__(self, per_minute: int, burst: int, max_clients: int = 50_000):
+        if per_minute <= 0 or burst < 1:
+            raise ValueError("rate limit needs per_minute > 0 and burst >= 1")
         self.rate = per_minute / 60.0
         self.burst = burst
         self.max_clients = max_clients
@@ -18,9 +20,13 @@ class TokenBucket:
         """Returns (allowed, seconds until the next token)."""
         now = time.monotonic()
         with self.lock:
-            if len(self.state) > self.max_clients:
-                # drop clients idle for over ten minutes so memory stays bounded
+            if len(self.state) >= self.max_clients:
+                # drop clients idle for over ten minutes; if that is not enough,
+                # drop the least recently seen half so memory stays bounded
                 self.state = {k: v for k, v in self.state.items() if now - v[1] < 600}
+                if len(self.state) >= self.max_clients:
+                    keep = sorted(self.state.items(), key=lambda kv: kv[1][1])[len(self.state) // 2:]
+                    self.state = dict(keep)
             tokens, last = self.state.get(key, (float(self.burst), now))
             tokens = min(self.burst, tokens + (now - last) * self.rate)
             if tokens < 1:

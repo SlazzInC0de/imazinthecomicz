@@ -16,6 +16,7 @@ Usage: python pipeline/fetch_anilist.py --max 15000 --out data/raw/anilist.jsonl
 import argparse
 import gzip
 import json
+import os
 import sys
 import time
 
@@ -94,44 +95,57 @@ def main() -> int:
     session = requests.Session()
     session.headers.update({"Content-Type": "application/json", "Accept": "application/json"})
 
-    seen, written, page, below, lowest = set(), 0, 1, None, None
+    seen, written, page, below, lowest, window_new = set(), 0, 1, None, None, 0
     pages_per_window = WINDOW // args.per_page
-    with gzip.open(args.out, "wt", encoding="utf-8") as out:
+    # Write to a side file and only replace the cached dump once the walk is done,
+    # so a failed refresh never leaves a half-written cache behind.
+    tmp = args.out + ".partial"
+    complete = False
+    with gzip.open(tmp, "wt", encoding="utf-8") as out:
         while written < args.max:
             try:
                 data = fetch_page(session, page, args.per_page, below)
-            except Exception as exc:  # keep what we have instead of losing the whole run
+            except Exception as exc:
                 print(f"::warning::AniList fetch stopped early at {written} titles: {exc}", flush=True)
                 break
-            new = 0
             for media in data["media"]:
-                lowest = media.get("popularity") if lowest is None else min(lowest, media.get("popularity") or 0)
+                popularity = media.get("popularity") or 0
+                lowest = popularity if lowest is None else min(lowest, popularity)
                 if media["id"] in seen:
                     continue
+                if written >= args.max:
+                    break
                 seen.add(media["id"])
                 out.write(json.dumps(media, ensure_ascii=False) + "\n")
                 written += 1
-                new += 1
+                window_new += 1
             if page % 20 == 0:
                 print(f"window below={below} page {page}: {written} titles", flush=True)
-            if not data["media"]:
+            last_page = not data["pageInfo"]["hasNextPage"]
+            if not data["media"] or written >= args.max or (last_page and page < pages_per_window):
+                complete = True
                 break
-            if new == 0 and page == 1 and below is not None:
-                # a whole page of ties we already have: step strictly below them
-                below, lowest = below - 1, below - 1
+            if page >= pages_per_window or last_page:
+                if window_new == 0:
+                    # a whole window of ties we already have: step strictly below them
+                    below = lowest
+                else:
+                    # +1 keeps titles that tie with the last one; duplicates are skipped by id
+                    below = lowest + 1
+                page, window_new = 1, 0
                 if below <= 0:
+                    complete = True
                     break
-                time.sleep(args.delay)
-                continue
-            if page >= pages_per_window or not data["pageInfo"]["hasNextPage"]:
-                if not data["pageInfo"]["hasNextPage"] and page < pages_per_window:
-                    break  # reached the true end of the list
-                # +1 keeps titles that tie with the last one; duplicates are skipped by id
-                below, page = (lowest or 0) + 1, 1
             else:
                 page += 1
             time.sleep(args.delay)
 
+    if complete or not os.path.exists(args.out):
+        os.replace(tmp, args.out)
+    else:
+        os.remove(tmp)
+        print(f"::warning::AniList refresh incomplete, keeping the previous {args.out}", flush=True)
+        return 0
     print(f"AniList: wrote {written} titles to {args.out}")
     return 0 if written else 1
 

@@ -21,7 +21,7 @@
   {"query": "fleets of starships at war across the galaxy", "type": "descriptive", "tags_any": ["Space", "Aliens"]},
   {"query": "people forced into a game where losers die", "type": "descriptive", "tags_any": ["Death Game", "Survival"]},
   {"query": "romance between coworkers at a company", "type": "descriptive", "tags_any": ["Workplace", "Office Lady"]},
-  {"query": "people born with special abilities protecting the city", "type": "descriptive", "tags_any": ["Super Power"], "genres_any": ["Superhero"]},
+  {"query": "people born with special abilities protecting the city", "type": "descriptive", "tags_any": ["Super Power"]},
   {"query": "a heartbreaking story that ends in loss", "type": "descriptive", "tags_any": ["Tragedy"]},
   {"query": "he returns to make those who betrayed him pay", "type": "descriptive", "tags_any": ["Revenge"]},
   {"query": "a young girl transforms to fight evil with magic", "type": "descriptive", "genres_any": ["Mahou Shoujo"]},

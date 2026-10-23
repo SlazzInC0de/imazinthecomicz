@@ -53,7 +53,11 @@ function Vibe(props: {
         defaultValue={props.value || "0.5"}
         disabled={!on}
         aria-label={`${props.title}: ${props.low} to ${props.high}`}
-        onChange={props.onChange}
+        // submit when the thumb is let go, not on every step while dragging
+        onPointerUp={props.onChange}
+        onKeyUp={(e) => {
+          if (e.key.startsWith("Arrow") || e.key === "Home" || e.key === "End") props.onChange();
+        }}
       />
       <div className="vibe-ends" aria-hidden="true">
         <span>{props.low}</span>
@@ -70,7 +74,21 @@ export default function Filters({ state, facets }: { state: FilterState; facets:
   const browsing = !state.q;
 
   return (
-    <form ref={form} action="/search" method="get" className="filters" aria-label="Filters">
+    <form
+      ref={form}
+      action="/search"
+      method="get"
+      className="filters"
+      aria-label="Filters"
+      onSubmit={(e) => {
+        // leave empty fields out of the URL (?q=x&kind=Manga, not &year_min=&status=)
+        for (const el of Array.from(e.currentTarget.elements)) {
+          if ((el instanceof HTMLInputElement || el instanceof HTMLSelectElement) && el.name && el.value === "") {
+            el.disabled = true;
+          }
+        }
+      }}
+    >
       {state.q && <input type="hidden" name="q" value={state.q} />}
 
       <fieldset>
@@ -98,6 +116,7 @@ export default function Filters({ state, facets }: { state: FilterState; facets:
 
       <fieldset className="years">
         <legend>Started between</legend>
+        {/* typing both years then pressing Enter or Apply submits; no submit on blur mid-range */}
         <input
           type="number"
           name="year_min"
@@ -107,7 +126,6 @@ export default function Filters({ state, facets }: { state: FilterState; facets:
           placeholder={String(facets?.year_min ?? 1950)}
           defaultValue={state.year_min}
           aria-label="From year"
-          onBlur={submit}
         />
         <span aria-hidden="true">and</span>
         <input
@@ -119,7 +137,6 @@ export default function Filters({ state, facets }: { state: FilterState; facets:
           placeholder={String(facets?.year_max ?? 2026)}
           defaultValue={state.year_max}
           aria-label="To year"
-          onBlur={submit}
         />
       </fieldset>
 

@@ -15,9 +15,23 @@ def test_bm25_prefers_rarer_terms():
     assert scores[0] > scores[1] > scores[2] == 0
 
 
-def test_semantic_query_finds_meaning(catalog):
-    hits, _ = catalog.search("a detective who sees ghosts", Filters())
-    assert set(ids(catalog, hits)[:2]) == {"al-1", "al-2"}
+def test_semantic_query_finds_meaning(frame):
+    """Query shares no words with any title, so only the embedding can find it."""
+    import numpy as np
+
+    from app.engine import Catalog
+
+    target = frame.index[frame["id"] == "al-3"][0]
+    vectors = np.eye(len(frame), dtype=np.float32)
+
+    class Stub:
+        def embed_query(self, text):
+            return vectors[target]
+
+    cat = Catalog(frame, vectors, Stub(), {})
+    hits, _ = cat.search("zxqv wplk", Filters())
+    assert ids(cat, hits)[0] == "al-3"
+    assert hits[0].keyword == 0
 
 
 def test_exact_title_wins(catalog):
@@ -43,6 +57,41 @@ def test_vibe_sliders_reorder(catalog):
     assert score(light, "al-4") > score(dark, "al-4")
     neutral, _ = catalog.search(q, Filters())
     assert score(neutral, "al-5") >= score(dark, "al-5")
+
+
+def test_scope_slider_reorders(catalog):
+    q = "friends fight in a town"
+    epic, _ = catalog.search(q, Filters(), scope=1.0)
+    small, _ = catalog.search(q, Filters(), scope=0.0)
+    score = lambda hits, cid: next(h.score for h in hits if catalog.records[h.index]["id"] == cid)  # noqa: E731
+    assert score(epic, "al-3") > score(small, "al-3")  # space opera
+    assert score(small, "al-4") > score(epic, "al-4")  # small-town bakery
+
+
+def test_missing_year_and_score_load(frame):
+    from app.engine import Catalog
+
+    broken = frame.copy()
+    broken.loc[0, "year"] = None
+    broken.loc[1, "score"] = None
+    cat = Catalog(broken, None, None, {})
+    assert cat.facets()["total"] == len(frame)
+    hits, _ = cat.search("bakery", Filters(year_min=2000))
+    assert all(cat.records[h.index]["year"] for h in hits)
+
+
+def test_stopword_title_still_found_in_keyword_mode(frame):
+    from app.engine import Catalog
+
+    renamed = frame.copy()
+    renamed.loc[renamed["id"] == "al-4", "title"] = "It Is"
+    cat = Catalog(renamed, None, None, {})
+    hits, _ = cat.search("it is", Filters())
+    assert ids(cat, hits)[0] == "al-4"
+
+
+def test_similar_fills_the_limit(catalog):
+    assert len(catalog.similar("al-3", 4)) == 4
 
 
 def test_matched_labels(catalog):

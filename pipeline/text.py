@@ -14,8 +14,8 @@ def clean_description(raw: str | None) -> str:
     """Turn an AniList / Comic Vine description into plain readable text."""
     if not raw:
         return ""
-    text = raw.replace("<br>", "\n").replace("<br/>", "\n").replace("<br />", "\n")
-    text = re.sub(r"</p>\s*<p[^>]*>", "\n\n", text)
+    text = re.sub(r"<br\s*/?>", "\n", raw, flags=re.IGNORECASE)
+    text = re.sub(r"</p>\s*<p[^>]*>", "\n\n", text, flags=re.IGNORECASE)
     text = _TAG.sub("", text)
     text = html.unescape(text)
     text = _MD.sub("", text)

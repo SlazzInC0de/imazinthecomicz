@@ -12,6 +12,7 @@ on:
     paths:
       - "pipeline/**"
       - "eval/**"
+      - "api/app/**"
       - ".github/workflows/data.yml"
   workflow_dispatch:
     inputs:
@@ -66,6 +67,13 @@ jobs:
           METRON_USERNAME: ${{ secrets.METRON_USERNAME }}
           METRON_PASSWORD: ${{ secrets.METRON_PASSWORD }}
         run: python pipeline/fetch_metron.py --max 1500
+
+      - name: Keep a cut-off Metron dump when there is no earlier one
+        run: |
+          if [ ! -f data/raw/metron.jsonl ] && [ -f data/raw/metron.jsonl.partial ]; then
+            mv data/raw/metron.jsonl.partial data/raw/metron.jsonl
+          fi
+          rm -f data/raw/*.partial
 
       - name: Build catalog
         run: python pipeline/build_dataset.py

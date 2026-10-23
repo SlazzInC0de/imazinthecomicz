@@ -17,7 +17,7 @@ export default function ComicCard({ comic, splash = false, priority = false }: P
   return (
     <li className={splash ? "card splash" : "card"}>
       <Link href={href} className="cover-link" tabIndex={-1} aria-hidden="true">
-        <Cover src={comic.cover} title={comic.title} color={comic.cover_color} priority={priority} />
+        <Cover key={comic.id} src={comic.cover} title={comic.title} color={comic.cover_color} priority={priority} />
       </Link>
       <div className="card-text">
         <h3 className="card-title">

@@ -142,8 +142,8 @@ class Catalog:
         self.popularity = pop / max(pop.max(), 1.0)
         self.tone = self.df["tone"].to_numpy(dtype=float)
         self.scope = self.df["scope"].to_numpy(dtype=float)
-        self.year = self.df["year"].astype("Float64").fillna(np.nan).to_numpy(dtype=float)
-        self.score_col = self.df["score"].astype("Float64").fillna(-1).to_numpy(dtype=float)
+        self.year = self.df["year"].astype("Float64").to_numpy(dtype=float, na_value=np.nan)
+        self.score_col = self.df["score"].astype("Float64").to_numpy(dtype=float, na_value=-1.0)
         self.kind = self.df["kind"].to_numpy()
         self.status = self.df["status"].fillna("").to_numpy()
         self.genre_sets = [set(g or []) for g in self.records_field("genres")]
@@ -218,10 +218,12 @@ class Catalog:
             combined = kw_n.copy()
 
         qnorm = normalize_title(query)
+        exact = np.zeros(len(idx), dtype=bool)
         if len(qnorm) >= 3:
             for pos, i in enumerate(idx):
                 titles = self.titles[i]
                 if qnorm in titles:
+                    exact[pos] = True
                     combined[pos] += EXACT_TITLE_BONUS
                 elif len(qnorm) >= 4 and any(qnorm in t for t in titles):
                     combined[pos] += PARTIAL_TITLE_BONUS
@@ -230,7 +232,8 @@ class Catalog:
         combined *= self._vibe(idx, tone, scope)
 
         if semantic is None:
-            relevant = np.flatnonzero(keyword > 0)
+            # a title made only of stopwords ("It", "Us") has no BM25 terms but still matches exactly
+            relevant = np.flatnonzero((keyword > 0) | exact)
             order = relevant[np.argsort(-combined[relevant], kind="stable")]
         else:
             order = np.argsort(-combined, kind="stable")
@@ -259,9 +262,14 @@ class Catalog:
         scores[i] = -np.inf
         # skip other entries of the same franchise (sequels share most of their text)
         base = normalize_title(self.records[i]["title"])[:8]
-        order = [int(j) for j in np.argsort(-scores)[: limit * 3]
-                 if not (len(base) >= 6 and normalize_title(self.records[j]["title"]).startswith(base))]
-        return [Hit(j, float(scores[j]), float(sims[j]), 0.0, []) for j in order[:limit]]
+        order = []
+        for j in np.argsort(-scores):
+            if scores[j] == -np.inf or len(order) == limit:
+                break
+            if len(base) >= 6 and normalize_title(self.records[j]["title"]).startswith(base):
+                continue
+            order.append(int(j))
+        return [Hit(j, float(scores[j]), float(sims[j]), 0.0, []) for j in order]
 
     def browse(self, f: Filters, sort: str = "popular", limit: int = 24, offset: int = 0) -> tuple[list[int], int]:
         idx = np.flatnonzero(self.mask(f))

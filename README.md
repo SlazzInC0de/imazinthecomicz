@@ -41,9 +41,9 @@ flowchart LR
     API --> W[Next.js site]
 ```
 
-**Pipeline** (`pipeline/`, runs in GitHub Actions): pulls titles in popularity order, drops light novels, adult titles and entries without a real synopsis, merges both sources into one schema and embeds a document per title. The raw API dumps are committed, so rebuilding the index does not hit the APIs again.
+**Pipeline** (`pipeline/`, runs in GitHub Actions): pulls titles in popularity order, drops light novels, adult titles and entries without a real synopsis, merges the sources into one schema and embeds a document per title. The raw API dumps are committed, so rebuilding the index does not hit the APIs again.
 
-**Search** (`api/app/engine.py`): every query is scored by cosine similarity against the embedding matrix and by BM25 over the same text (title counted three times). Both are min-max scaled over the filtered candidates and blended 70/30. An exact title match gets a bonus and popularity breaks near ties. Results show which genres or themes your words hit. There is no "92% match" badge: the benchmark showed raw cosine scores of relevant and irrelevant hits overlap almost completely, so a percentage would be invented.
+**Search** (`api/app/engine.py`): every query is scored by cosine similarity against the embedding matrix and by BM25 over the same text (the title and alternative titles are repeated three extra times on top of the document). Cosine is min-max scaled over the filtered candidates, BM25 is divided by its top score, and the two are blended 70/30. An exact title match gets a bonus and popularity breaks near ties. Results show which genres or themes your words hit. There is no "92% match" badge: the benchmark showed raw cosine scores of relevant and irrelevant hits overlap almost completely, so a percentage would be invented.
 
 **Tone and scale**: AniList ranks how strongly each theme applies (Tragedy 87%, Iyashikei 92%). Known themes and genres push a title toward darker or lighter, and grounded or world-ending, weighted by rank. Each title then gets its percentile in the catalog, so the slider middle is the catalog middle. Sliders are off until switched on and scale scores by at most 35% each.
 
@@ -71,12 +71,12 @@ What the numbers do not show:
 
 Checked against my pre-launch list before deploying:
 
-- **Read-only API**, GET only, no database, no user accounts, nothing to inject into. Every parameter is validated (lengths, enums, ranges, id pattern) and anything else is a 422.
+- **Read-only API**, GET only, no database, no user accounts, nothing to inject into. Every declared parameter is validated (lengths, enums, ranges, id pattern) and an invalid value is a 422. Unknown parameters are ignored.
 - **Rate limiting per visitor.** The Next.js server forwards the visitor's IP with a shared `PROXY_KEY`; the API only believes that IP when the key matches (constant-time compare), otherwise it limits by the real connection. Spoofing `X-Client-IP` does nothing.
-- **CORS** allows only the site's origin. **Security headers** on both apps: CSP (no third-party scripts, images only from the two cover CDNs), HSTS, `nosniff`, `frame-ancestors 'none'`, referrer and permissions policies.
+- **CORS** allows only the site's origin, including on 429 responses. **Security headers**: the API sends `default-src 'none'` CSP, HSTS, `nosniff`, `X-Frame-Options` and `no-referrer`. The site adds a per-request nonce CSP (no inline script runs without it, no third-party scripts, images only from the AniList, Metron and Comic Vine CDNs), HSTS, a permissions policy and `frame-ancestors 'none'`.
 - **No stack traces** reach clients, API docs are off in production, no source maps in the browser bundle.
 - **No pickle.** v1 loaded a committed `.pkl`, which executes code on load. v2 uses Parquet and `.npy`.
-- **Secrets** (Comic Vine key, HF token) live in GitHub secrets, gitleaks scans every push, Dependabot and `npm audit` watch dependencies.
+- **Secrets** (Metron token, Comic Vine key, HF token) live in GitHub secrets. gitleaks scans pushes to `main` and `v2` and every pull request; Dependabot and `npm audit` watch dependencies.
 - **JSON-LD** on comic pages escapes `<` so a synopsis cannot close the script tag.
 
 ## Run it locally

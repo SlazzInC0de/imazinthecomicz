@@ -12,8 +12,10 @@ so the walk is:
   3. fetch one cover per kept series from its issue list
 Requests are spaced out and follow the X-RateLimit / Retry-After headers.
 
-Output is plain JSON lines flushed after every series, so a run that gets cut
-off by a time limit still leaves a valid file with everything fetched so far.
+Output is plain JSON lines flushed after every series into <out>.partial, which
+replaces <out> only when the walk finishes. A run cut off by a time limit
+leaves the previous dump untouched; the workflow promotes the .partial file
+only when there is no earlier dump to fall back on.
 
 Usage: python pipeline/fetch_metron.py --max 1500 --out data/raw/metron.jsonl
 """
@@ -46,15 +48,22 @@ class Client:
         self.gap, self.budget, self.used, self.last = gap, daily_budget, 0, 0.0
 
     def get(self, url: str, params: dict | None = None) -> dict:
-        if self.used >= self.budget:
-            raise RuntimeError("daily request budget used up")
         for attempt in range(6):
+            # checked on every attempt, so retries cannot run past the cap
+            if self.used >= self.budget:
+                raise RuntimeError("daily request budget used up")
             wait = self.gap - (time.time() - self.last)
             if wait > 0:
                 time.sleep(wait)
             self.last = time.time()
             self.used += 1
-            resp = self.session.get(url if url.startswith("http") else f"{BASE}/{url}", params=params, timeout=60)
+            try:
+                resp = self.session.get(url if url.startswith("http") else f"{BASE}/{url}", params=params,
+                                        timeout=60)
+            except requests.RequestException as exc:  # timeouts, resets
+                print(f"  network error ({exc.__class__.__name__}), retrying", flush=True)
+                time.sleep(10 * (attempt + 1))
+                continue
             if resp.status_code == 429:
                 pause = int(resp.headers.get("Retry-After", "65"))
                 print(f"  rate limited, waiting {pause}s", flush=True)
@@ -117,8 +126,9 @@ def main() -> int:
     candidates.sort(key=lambda s: -(s.get("issue_count") or 0))
     print(f"Metron: {len(listing)} series listed, {len(candidates)} candidates", flush=True)
 
-    written = 0
-    with open(args.out, "w", encoding="utf-8") as out:
+    written, complete = 0, True
+    tmp = args.out + ".partial"
+    with open(tmp, "w", encoding="utf-8") as out:
         for s in candidates:
             if written >= args.max:
                 break
@@ -133,6 +143,7 @@ def main() -> int:
                 detail["cover"] = first_cover(client, s["id"])
             except RuntimeError as exc:
                 print(f"::warning::Metron fetch stopped at {written} series: {exc}")
+                complete = False
                 break
             except requests.HTTPError as exc:
                 print(f"  skip series {s['id']}: {exc}")
@@ -143,7 +154,12 @@ def main() -> int:
             if written % 100 == 0:
                 print(f"kept {written} series ({client.used} requests)", flush=True)
 
-    print(f"Metron: wrote {written} series to {args.out} using {client.used} requests")
+    if complete or not os.path.exists(args.out):
+        os.replace(tmp, args.out)
+    else:
+        os.remove(tmp)
+        print(f"::warning::Metron refresh incomplete, keeping the previous {args.out}")
+    print(f"Metron: fetched {written} series using {client.used} requests")
     return 0
 
 

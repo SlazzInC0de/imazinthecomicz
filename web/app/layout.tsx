@@ -5,6 +5,9 @@ import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 
+// Every page renders per request so it can carry the CSP nonce from proxy.ts.
+export const dynamic = "force-dynamic";
+
 const SITE_URL = process.env.SITE_URL ?? "http://localhost:3000";
 
 export const metadata: Metadata = {
@@ -28,7 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <a className="visually-hidden" href="#main">
+        <a className="visually-hidden skip-link" href="#main">
           Skip to content
         </a>
         <header className="page masthead">

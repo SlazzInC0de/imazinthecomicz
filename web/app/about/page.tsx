@@ -44,8 +44,8 @@ export default function About() {
         </li>
       </ul>
       <p>
-        The two scores are blended 70 to 30. A title that matches your query exactly jumps to the top, and popularity
-        only breaks near ties. There is no &ldquo;95% match&rdquo; badge on results: the benchmark showed that raw
+        The two scores are blended 70 to 30. A title that matches your query exactly gets a large bonus, so typing a
+        name almost always puts that series first, and popularity only breaks near ties. There is no &ldquo;95% match&rdquo; badge on results: the benchmark showed that raw
         similarity scores of good and bad hits overlap almost completely, so a percentage would be made up. Results only
         say which of your words they share with a title&apos;s genres or themes.
       </p>
@@ -55,7 +55,8 @@ export default function About() {
         AniList ranks how strongly each theme applies to a title, like Tragedy at 87% or Iyashikei at 92%. Themes and
         genres push a title toward darker or lighter, and toward grounded or world-ending. Each title then gets its
         position as a percentile of the whole catalog, so the middle of a slider is the middle of the catalog. The
-        sliders are off until you switch them on, and even then they only reorder close matches.
+        sliders are off until you switch them on. When on, each one lowers a title&apos;s score by up to 35% depending on
+        how far it sits from your setting, so they reshuffle the list without replacing what your description found.
       </p>
 
       <h2>Does it actually work?</h2>

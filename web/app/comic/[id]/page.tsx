@@ -100,7 +100,15 @@ export default async function ComicPage({ params }: { params: Params }) {
   ];
   const paragraphs = comic.description.split(/\n{2,}/).filter(Boolean);
   // romaji and the original script; AniList synonyms also hold fan translations in many languages
-  const altTitles = comic.alt_titles.filter((t) => READABLE.test(t)).slice(0, 2);
+  const seenTitles = new Set([comic.title.toLowerCase()]);
+  const altTitles = comic.alt_titles
+    .filter((t) => {
+      const key = t.toLowerCase();
+      if (seenTitles.has(key) || !READABLE.test(t)) return false;
+      seenTitles.add(key);
+      return true;
+    })
+    .slice(0, 2);
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -124,7 +132,7 @@ export default async function ComicPage({ params }: { params: Params }) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
       />
       <div className={`blueline ${styles.coverPanel}`}>
-        <Cover src={comic.cover} title={comic.title} color={comic.cover_color} priority />
+        <Cover key={comic.id} src={comic.cover} title={comic.title} color={comic.cover_color} priority />
       </div>
 
       <div className={styles.info}>

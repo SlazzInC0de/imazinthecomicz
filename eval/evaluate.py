@@ -16,7 +16,7 @@ Rankers compared on the same catalog:
 Also prints the cosine of relevant vs irrelevant top-10 hits, to check whether a
 fixed similarity cut-off could label results (so far it cannot, see results.md).
 
-Usage: python eval/evaluate.py [--out eval/results.md]
+Usage: python eval/evaluate.py [--out eval/results.md]   (writes eval/results.md by default)
 """
 import argparse
 import json
@@ -29,7 +29,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "api"))
 
 from app.embedder import FastEmbedder  # noqa: E402
-from app.engine import Catalog, Filters, tokenize  # noqa: E402
+from app.engine import MAX_RESULTS, Catalog, Filters, tokenize  # noqa: E402
 from pathlib import Path  # noqa: E402
 
 
@@ -38,7 +38,9 @@ def relevant_mask(catalog: Catalog, rule: dict) -> np.ndarray:
     genres, tags = set(rule.get("genres_any", [])), set(rule.get("tags_any", []))
     titles = [t.lower() for t in rule.get("title_contains", [])]
     for i, rec in enumerate(catalog.records):
-        if genres & set(rec["genres"] or []) or tags & set(rec["tags"] or []):
+        # genre/tag relevance uses AniList's own labels only; Western genres are inferred by us
+        labelled = rec["source"] == "AniList"
+        if labelled and (genres & set(rec["genres"] or []) or tags & set(rec["tags"] or [])):
             out[i] = True
         elif titles:
             names = [rec["title"].lower(), *[a.lower() for a in rec["alt_titles"] or []]]
@@ -55,7 +57,7 @@ def metrics(order: np.ndarray, relevant: np.ndarray) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data", default=os.path.join(ROOT, "data"))
-    parser.add_argument("--out", default=None)
+    parser.add_argument("--out", default=os.path.join(ROOT, "eval", "results.md"))
     args = parser.parse_args()
 
     catalog = Catalog.load(Path(args.data), FastEmbedder)
@@ -74,13 +76,13 @@ def main() -> int:
         qvec = catalog.embedder.embed_query(item["query"])
         semantic = catalog.vectors @ qvec
         keyword = catalog.bm25.score(tokenize(item["query"]))
-        hybrid_hits, _ = catalog.search(item["query"], Filters(), limit=48)
-        top = [h.index for h in hybrid_hits]
-        seen = set(top)
+        # the API serves 96 ranked results in pages of up to 48; rank every method to the same depth
+        page1, _ = catalog.search(item["query"], Filters(), limit=48, offset=0)
+        page2, _ = catalog.search(item["query"], Filters(), limit=48, offset=48)
         orders = {
-            "keyword": np.argsort(-keyword, kind="stable"),
-            "semantic": np.argsort(-semantic, kind="stable"),
-            "hybrid": np.array(top + [i for i in np.argsort(-semantic) if i not in seen]),
+            "keyword": np.argsort(-keyword, kind="stable")[:MAX_RESULTS],
+            "semantic": np.argsort(-semantic, kind="stable")[:MAX_RESULTS],
+            "hybrid": np.array([h.index for h in page1 + page2], dtype=int),
         }
         scores = {name: metrics(order, relevant) for name, order in orders.items()}
         scores["random"] = {"p5": relevant.mean(), "p10": relevant.mean(), "mrr": float("nan")}
@@ -118,6 +120,7 @@ def main() -> int:
     report = "\n".join(lines) + "\n"
     print(report)
     if args.out:
+        os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
         with open(args.out, "w", encoding="utf-8") as fh:
             fh.write(report)
     return 0

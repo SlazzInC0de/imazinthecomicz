@@ -7,8 +7,8 @@ Data comes from AniList (manga, manhwa, manhua) and Metron / Comic Vine (Western
 ## Pages
 
 - [Search](/search?q=a%20detective%20who%20can%20see%20ghosts): `/search?q=<description>`. Optional filters: `kind` (Manga, Manhwa, Manhua, Western, repeatable), `genre` (repeatable), `year_min`, `year_max`, `status` (Completed, Ongoing, Hiatus, Cancelled), `min_score` (0-100), `tone` and `scope` (0 to 1).
-- [Browse](/search): the catalog with the same filters and `sort` (popular, score, newest).
-- Comic pages: `/comic/<id>`, where ids look like `al-30013` (AniList) `mt-1203` (Metron) or `cv-4050` (Comic Vine). Each has the synopsis, genres, themes, creators, tone and scale, and up to 12 similar titles.
+- [Browse](/search): the catalog with `kind`, `genre`, `year_min`, `year_max`, `status` and `min_score`, plus `sort` (popular, score, newest). `tone` and `scope` only apply to searches.
+- Comic pages: `/comic/<id>`, where ids look like `al-30013` (AniList) `mt-1203` (Metron) or `cv-4050` (Comic Vine). Each has the synopsis, genres, tone and scale, up to 12 similar titles, and themes and creators when the source provides them (AniList does, Metron does not).
 - [How the search works](/about)
 
 ## Source

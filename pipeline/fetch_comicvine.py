@@ -38,8 +38,12 @@ class Budget:
 
     def __init__(self, per_hour: int, gap: float):
         self.per_hour, self.gap, self.stamps, self.last = per_hour, gap, [], 0.0
+        self.used, self.cap = 0, None
 
     def wait(self):
+        if self.cap is not None and self.used >= self.cap:
+            raise RuntimeError("request cap reached")
+        self.used += 1  # every HTTP attempt counts, retries included
         now = time.time()
         self.stamps = [t for t in self.stamps if now - t < 3600]
         if len(self.stamps) >= self.per_hour:
@@ -56,7 +60,12 @@ class Budget:
 def get(session, budget, path, params):
     for attempt in range(6):
         budget.wait()
-        resp = session.get(f"{BASE}/{path}/", params=params, timeout=60)
+        try:
+            resp = session.get(f"{BASE}/{path}/", params=params, timeout=60)
+        except requests.RequestException as exc:  # timeouts, resets
+            print(f"  network error ({exc.__class__.__name__}), retrying", flush=True)
+            time.sleep(10 * (attempt + 1))
+            continue
         if resp.status_code in (420, 429):
             time.sleep(60 * (attempt + 1))
             continue
@@ -98,6 +107,7 @@ def main() -> int:
     # Comic Vine rejects the default python-requests user agent.
     session.headers["User-Agent"] = "imazinthecomicz-dataset-builder/2.0 (github.com/SlazzInC0de/imazinthecomicz)"
     budget = Budget(per_hour=190, gap=1.2)
+    budget.cap = args.max_requests
     base = {"api_key": key, "format": "json", "field_list": FIELDS, "limit": 100}
 
     # Long-running series first: they are the ones people actually search for.
@@ -106,25 +116,37 @@ def main() -> int:
     if counts != sorted(counts, reverse=True):
         print("Comic Vine ignored the sort parameter, results will be in id order.")
 
-    seen, written, requests_made, offset = set(), 0, 1, 0
+    seen, written, offset, complete = set(), 0, 0, True
     page = first
-    with gzip.open(args.out, "wt", encoding="utf-8") as out:
+    tmp = args.out + ".partial"
+    with gzip.open(tmp, "wt", encoding="utf-8") as out:
         while True:
             for vol in page["results"]:
+                if written >= args.max:
+                    break
                 if vol["id"] in seen or not keep(vol, args.min_issues):
                     continue
                 seen.add(vol["id"])
                 out.write(json.dumps(vol, ensure_ascii=False) + "\n")
                 written += 1
             offset += 100
-            if written >= args.max or requests_made >= args.max_requests or offset >= page["number_of_total_results"]:
+            if written >= args.max or budget.used >= args.max_requests or offset >= page["number_of_total_results"]:
                 break
-            page = get(session, budget, "volumes", {**base, "sort": "count_of_issues:desc", "offset": offset})
-            requests_made += 1
-            if requests_made % 10 == 0:
-                print(f"request {requests_made}: {written} series kept", flush=True)
+            try:
+                page = get(session, budget, "volumes", {**base, "sort": "count_of_issues:desc", "offset": offset})
+            except (RuntimeError, requests.HTTPError) as exc:
+                print(f"::warning::Comic Vine fetch stopped at {written} series: {exc}")
+                complete = False
+                break
+            if budget.used % 10 == 0:
+                print(f"request {budget.used}: {written} series kept", flush=True)
 
-    print(f"Comic Vine: wrote {written} series to {args.out} using {requests_made} requests")
+    if complete or not os.path.exists(args.out):
+        os.replace(tmp, args.out)
+    else:
+        os.remove(tmp)
+        print(f"::warning::Comic Vine refresh incomplete, keeping the previous {args.out}")
+    print(f"Comic Vine: kept {written} series using {budget.used} requests")
     return 0
 
 

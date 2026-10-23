@@ -8,7 +8,7 @@ from app.settings import Settings
 @pytest.fixture()
 def client(catalog):
     settings = Settings(allowed_origins=["https://web.example"], proxy_key="s3cret", rate_per_minute=600,
-                        rate_burst=100)
+                        rate_burst=100, enable_docs=False)
     with TestClient(create_app(settings, catalog)) as c:
         yield c
 
@@ -94,14 +94,43 @@ def test_rate_limit_per_visitor(catalog):
         # a different visitor behind the same server still gets through
         other = {"X-Proxy-Key": "s3cret", "X-Client-IP": "2.2.2.2"}
         assert c.get("/api/health", headers=other).status_code == 200
-        # a spoofed IP without the key is limited by the real connection instead
-        spoof = {"X-Client-IP": "3.3.3.3"}
-        codes = [c.get("/api/health", headers=spoof).status_code for _ in range(3)]
+        # spoofed IPs without the key are limited by the real connection instead:
+        # a fresh fake IP on every request still lands in the same bucket
+        codes = [c.get("/api/health", headers={"X-Client-IP": f"3.3.3.{n}"}).status_code for n in range(3)]
         assert codes[-1] == 429
-        assert "retry-after" in c.get("/api/health", headers=spoof).headers
+        assert "retry-after" in c.get("/api/health", headers={"X-Client-IP": "3.3.3.9"}).headers
         # the web server's cached renders (key, no visitor) are not limited
         server = {"X-Proxy-Key": "s3cret"}
         assert {c.get("/api/health", headers=server).status_code for _ in range(5)} == {200}
         # a wrong key does not unlock that
         wrong = {"X-Proxy-Key": "guess", "X-Client-IP": "4.4.4.4"}
         assert [c.get("/api/health", headers=wrong).status_code for _ in range(2)][-1] == 429
+
+
+def test_rate_limited_response_keeps_cors_and_security_headers(catalog):
+    settings = Settings(allowed_origins=["https://web.example"], rate_per_minute=1, rate_burst=1)
+    with TestClient(create_app(settings, catalog)) as c:
+        origin = {"Origin": "https://web.example"}
+        c.get("/api/health", headers=origin)
+        r = c.get("/api/health", headers=origin)
+        assert r.status_code == 429
+        assert r.headers["access-control-allow-origin"] == "https://web.example"
+        assert "retry-after" in r.headers["access-control-expose-headers"].lower()
+        assert r.headers["x-content-type-options"] == "nosniff"
+
+
+def test_browse_rejects_long_genre(client):
+    assert client.get("/api/browse", params={"genre": "x" * 41}).status_code == 422
+
+
+def test_limiter_rejects_bad_config_and_stays_bounded():
+    import pytest as _pytest
+
+    from app.ratelimit import TokenBucket
+
+    with _pytest.raises(ValueError):
+        TokenBucket(0, 5)
+    bucket = TokenBucket(60, 5, max_clients=100)
+    for n in range(1000):
+        bucket.allow(f"k{n}")
+    assert len(bucket.state) <= 100
