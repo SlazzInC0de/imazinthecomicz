@@ -1,152 +1,122 @@
 <div align="center">
 
-# 🦸 IMAZINTHECOMICS
+# IMAZINTHECOMICS
 
-### Semantic comic recommendation engine
-
-**Describe the story you want in plain English. Tune the vibe. Get matching comics.**
+**Describe a story. Get manga, manhwa, manhua and Western comics that tell it.**
 
 [![Tests](https://github.com/SlazzInC0de/imazinthecomicz/actions/workflows/tests.yml/badge.svg)](https://github.com/SlazzInC0de/imazinthecomicz/actions/workflows/tests.yml)
-![Python](https://img.shields.io/badge/Python-0f172a?logo=python&logoColor=3776AB)
-![Sentence Transformers](https://img.shields.io/badge/all--MiniLM--L6--v2-0f172a?logo=huggingface&logoColor=FFD21E)
-![Streamlit](https://img.shields.io/badge/Streamlit-0f172a?logo=streamlit&logoColor=FF4B4B)
-![NumPy](https://img.shields.io/badge/NumPy-0f172a?logo=numpy&logoColor=4DABCF)
-![Coverage](https://img.shields.io/badge/coverage-97%25-22c55e)
-![P@5](https://img.shields.io/badge/P%405-0.45_vs_0.34_TF--IDF-22d3ee)
-![License](https://img.shields.io/badge/License-MIT-22d3ee)
+[![Catalog](https://github.com/SlazzInC0de/imazinthecomicz/actions/workflows/data.yml/badge.svg)](https://github.com/SlazzInC0de/imazinthecomicz/actions/workflows/data.yml)
 
 </div>
 
----
+Keyword search fails on queries like *"a detective who can see ghosts"* when the synopsis says *"spirits"* and *"murder cases"*. This project ranks real titles by what their synopsis is about, and still finds a series when you type its name.
 
-## ✨ What it does
+**Catalog:** 16,964 titles: 12,201 manga, 3,160 manhwa, 925 manhua (AniList) and 678 Western series (Metron), each with a synopsis, genres and a cover.
 
-Keyword search fails on queries like *"a blind lawyer fighting crime in Hell's Kitchen"*. IMAZINTHECOMICS embeds every title in a **10,000-comic catalog** into a 384-dimensional vector space and ranks by meaning, then lets you steer results with two **vibe sliders**:
+## What changed in v2
 
-- 🎭 **Tone**: campy ➡ grimdark
-- 🌌 **Scope**: street-level ➡ cosmic
+Version 1 was a Streamlit demo over 10,000 generated rows with made-up titles, embedded from a one-line template. Version 2 is rebuilt end to end:
 
-All of it runs locally with a pre-built index, wrapped in a hand-styled, comic-panel Streamlit UI.
+| | v1 | v2 |
+|---|---|---|
+| Data | Synthetic CSV | Real titles from AniList and Metron, with synopses, ranked themes, creators and covers |
+| What gets embedded | Title, genre, publisher | Synopsis, genres, themes, creators |
+| Ranking | Embeddings only | Embeddings + BM25, exact title bonus, popularity tie-break |
+| Vibe sliders | Hand-set by genre | Percentiles from AniList's ranked themes, off by default |
+| Model | all-MiniLM-L6-v2 on PyTorch | bge-small-en-v1.5 on ONNX (fastembed), no PyTorch at runtime |
+| App | Streamlit | FastAPI service + server-rendered Next.js site |
+| Data files | Pickle (runs code on load) | Parquet + NumPy |
 
-## 🧠 How ranking works
+## How it works
 
 ```mermaid
 flowchart LR
-    Q([User query]) --> E[all-MiniLM-L6-v2<br/>query embedding]
-    E --> C[Cosine similarity<br/>vs 10k x 384 matrix]
-    C --> S[Semantic score<br/>clipped to 0..1]
-    T([Tone + Scope sliders]) --> P[Distance to each title's<br/>tone / scope features]
-    S --> M{{"composite = semantic x (1 - 0.15·Δtone - 0.15·Δscope)"}}
-    P --> M
-    M --> R([Top-5 comic panels])
+    A[AniList GraphQL] --> F[pipeline/fetch_*.py]
+    M[Metron API] --> F
+    C[Comic Vine API, optional] --> F
+    F --> B[build_dataset.py<br/>clean, merge, tone and scale]
+    B --> I[build_index.py<br/>bge-small embeddings]
+    I --> D[(catalog.parquet<br/>embeddings.npy)]
+    D --> API[FastAPI<br/>hybrid search]
+    API --> W[Next.js site]
 ```
 
-- **Text is the gatekeeper.** The semantic score decides what is relevant.
-- **Vibe is the fine-tuner.** Sliders can lower a match by at most 30% combined, so they reorder close results without overriding meaning.
-- **Tone and scope are derived from metadata** (`vibe.py`): genre keywords plus age rating map each title into [0, 1]. For example, *Horror / Supernatural* lands at tone 0.85, scope 0.70, while *Comedy / Slice of Life* sits at tone 0.00, scope 0.20.
+**Pipeline** (`pipeline/`, runs in GitHub Actions): pulls titles in popularity order, drops light novels, adult titles and entries without a real synopsis, merges the sources into one schema and embeds a document per title. The raw API dumps are committed, so rebuilding the index does not hit the APIs again.
 
-## 📏 Evaluation
+**Search** (`api/app/engine.py`): every query is scored by cosine similarity against the embedding matrix and by BM25 over the same text (the title and alternative titles are repeated three extra times on top of the document). Cosine is min-max scaled over the filtered candidates, BM25 is divided by its top score, and the two are blended 70/30. An exact title match gets a bonus and popularity breaks near ties. Results show which genres or themes your words hit. There is no "92% match" badge: the benchmark showed raw cosine scores of relevant and irrelevant hits overlap almost completely, so a percentage would be invented.
 
-A catalog this size says nothing about quality on its own, so the repo ships a labelled benchmark: [`eval/queries.json`](eval/queries.json) holds 20 natural-language queries, and a title counts as relevant when its genre, publisher or art style matches the query's rule. Seventeen queries are **paraphrases** that avoid the genre word on purpose ("a detective solving murders" for *Mystery / Crime / Noir*), so they test meaning rather than keyword overlap.
+**Tone and scale**: AniList ranks how strongly each theme applies (Tragedy 87%, Iyashikei 92%). Known themes and genres push a title toward darker or lighter, and grounded or world-ending, weighted by rank. Each title then gets its percentile in the catalog, so the slider middle is the catalog middle. Sliders are off until switched on and scale scores by at most 35% each.
 
-`python eval/evaluate.py` runs the real model in CI and writes [`eval/results.md`](eval/results.md):
+**Similar titles**: nearest neighbours in embedding space, skipping entries of the same franchise so "If you liked Naruto" is not five Naruto sequels.
+
+## Benchmark
+
+`eval/queries.json` has 35 queries. 30 describe a story without naming the genre or theme ("spirits haunting an old house" for Horror / Ghost), 5 are series names. Relevance comes from AniList's own labels. `python eval/evaluate.py` runs in CI after every catalog build and writes [`eval/results.md`](eval/results.md).
 
 | Ranker | P@5 | P@10 | MRR |
 |---|---:|---:|---:|
-| Random (expected) | 0.08 | 0.08 | n/a |
-| TF-IDF keywords | 0.34 | 0.34 | 0.41 |
-| **Semantic engine** | **0.45** | **0.41** | **0.58** |
+| Random | 0.04 | 0.04 | n/a |
+| Keyword (BM25) | 0.50 | 0.44 | 0.69 |
+| Semantic (embeddings) | 0.49 | 0.45 | 0.73 |
+| **Hybrid (served)** | **0.57** | **0.49** | **0.79** |
 
-On paraphrase queries alone, semantic search reaches P@5 **0.39 vs 0.22** for TF-IDF.
+On descriptive queries alone the blend lifts P@5 from 0.45 (keyword and semantic alike) to 0.53. Typing a series name puts it first every time (MRR 1.00).
 
-**Where it still fails, and why:**
-- *"an ordinary person transported to another world"* (isekai), *"ancient gods and legendary myths"* and *"growing up as a teenager"* score 0 at P@5. The likely cause: each title is embedded from a one-line description generated from its metadata, so a niche genre word like "Isekai" carries little meaning for a general-purpose model.
-- *"costumed heroes protecting the city"* also misses, probably because the only signal in each description is the single word "Superhero".
-- Keyword search still wins on literal queries ("watercolor": 1.00 vs 0.40).
+What the numbers do not show:
 
-**Takeaways:** richer documents (real plot synopses) matter more than model size here, and a hybrid score (semantic + TF-IDF) would cover the literal-query weakness. Both are on the roadmap.
+- Relevance comes from AniList labels, so a Western series that fits a query still counts as a miss (it has no AniList tags). The scores are a floor, not a ceiling.
+- The raw cosine of relevant and irrelevant top-10 hits overlaps almost completely (median 0.611 vs 0.608), so the site shows no "match %" badge. Rank order carries the signal, a single score does not.
 
-> Labels are rule-based and the catalog is synthetic, so these numbers measure retrieval behaviour, not real-world recommendation accuracy.
+## Security
 
-## 🧭 Design decisions
+Checked against my pre-launch list before deploying:
 
-| Decision | Why | Trade-off / alternative |
-|---|---|---|
-| **Pre-computed index committed to the repo** | The app boots in seconds without re-embedding 10k titles | ~18 MB of binaries in git; regenerate with `build_index.py` when the CSV changes |
-| **Brute-force NumPy cosine** over a vector DB | 10k × 384 is ~15 MB; one matrix-vector product is fast enough | Linear in catalog size; FAISS or HNSW past ~100k titles |
-| **Sliders multiply, capped at -30%** | Meaning stays the gatekeeper; vibe only reorders close matches | Sliders cannot surface a weak text match, by design |
-| **Tone and scope from metadata rules** | Gives the sliders real signal without labelled data | Hand-tuned weights; learning them from plot text would be better |
-| **`all-MiniLM-L6-v2`** | Small (80 MB), CPU-friendly, good general sentence embeddings | Weak on niche genre jargon (see evaluation) |
-| **Model stubbed in unit tests** | Ranking logic is tested in under a second without torch | The real model is exercised only by the evaluation job |
+- **Read-only API**, GET only, no database, no user accounts, nothing to inject into. Every declared parameter is validated (lengths, enums, ranges, id pattern) and an invalid value is a 422. Unknown parameters are ignored.
+- **Rate limiting per visitor.** The Next.js server forwards the visitor's IP with a shared `PROXY_KEY`; the API only believes that IP when the key matches (constant-time compare), otherwise it limits by the real connection. Spoofing `X-Client-IP` does nothing.
+- **CORS** allows only the site's origin, including on 429 responses. **Security headers**: the API sends `default-src 'none'` CSP, HSTS, `nosniff`, `X-Frame-Options` and `no-referrer`. The site adds a per-request nonce CSP (no inline script runs without it, no third-party scripts, images only from the AniList, Metron and Comic Vine CDNs), HSTS, a permissions policy and `frame-ancestors 'none'`.
+- **No stack traces** reach clients, API docs are off in production, no source maps in the browser bundle.
+- **No pickle.** v1 loaded a committed `.pkl`, which executes code on load. v2 uses Parquet and `.npy`.
+- **Secrets** (Metron token, Comic Vine key, HF token) live in GitHub secrets. gitleaks scans pushes to `main` and `v2` and every pull request; Dependabot and `npm audit` watch dependencies.
+- **JSON-LD** on comic pages escapes `<` so a synopsis cannot close the script tag.
 
-## ⚡ Engineering notes
-
-- **Offline indexing**: `build_index.py` turns catalog metadata into a descriptive document per title, embeds all 10k once and caches `vector_cache.npy` + `catalog_cache.pkl`.
-- **Pure NumPy retrieval**: similarity is a single matrix-vector product, with no per-query PyTorch tensor conversion.
-- **Load once**: `st.cache_resource` keeps the model and matrix in memory across reruns.
-- **Safe rendering**: every catalog value is HTML-escaped before it is injected into the custom panel markup.
-- **Tested without the model**: 9 pytest cases (97% coverage of `engine.py` and `vibe.py`) stub the encoder, so ranking logic runs in CI in under a second.
-
-## 🚀 Run locally
+## Run it locally
 
 ```bash
-git clone https://github.com/SlazzInC0de/imazinthecomicz.git
-cd imazinthecomicz
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+# API (needs data/ from the catalog workflow, or run the pipeline yourself)
+pip install -r api/requirements-dev.txt
+uvicorn app.main:app --app-dir api --reload        # http://127.0.0.1:8000/api/health
+python -m pytest api/tests tests                    # no model download needed
 
-streamlit run imazinthecomics.py
+# Web
+cd web && cp .env.example .env.local && npm install && npm run dev   # http://localhost:3000
+
+# Rebuild the catalog yourself
+pip install -r pipeline/requirements.txt
+python pipeline/fetch_anilist.py
+COMICVINE_API_KEY=... python pipeline/fetch_comicvine.py   # optional
+python pipeline/build_dataset.py && python pipeline/build_index.py
+python eval/evaluate.py
 ```
 
-The prebuilt index ships with the repo. To rebuild it after editing `comics.csv`:
+## Deploy
 
-```bash
-python build_index.py
+1. **API on Hugging Face Spaces** (free CPU, 16 GB RAM). Create a write token at huggingface.co/settings/tokens. In this repo: Settings > Secrets and variables > Actions, add secret `HF_TOKEN` and variable `HF_SPACE` (for example `slazz/imazinthecomicz-api`). The **Deploy API** workflow builds the Space on every push to `main` that touches `api/` or `data/`. In the Space settings add `ALLOWED_ORIGINS` (your Vercel URL) and `PROXY_KEY` (any long random string).
+2. **Web on Vercel.** Import the repo, set the root directory to `web`, and add env vars `API_URL` (`https://<user>-<space>.hf.space`), `PROXY_KEY` (same value) and `SITE_URL` (the Vercel or custom domain).
+3. **Western comics** come from Metron (secret `METRON_API_TOKEN`, free account, about 20 requests a minute). A Comic Vine key (`COMICVINE_API_KEY`) adds more. Run the **Build catalog** workflow with *refresh* ticked to fetch again.
+
+## Project layout
+
+```
+pipeline/   fetchers, dataset builder, tone/scale scoring, index builder
+data/       raw API dumps, catalog.parquet, embeddings.npy, meta.json (built by CI)
+api/        FastAPI service, engine, rate limiter, tests, Dockerfile
+eval/       benchmark queries, evaluate.py, results.md
+web/        Next.js site
+tests/      pipeline tests
 ```
 
-**CLI smoke test**
+## Credits
 
-```bash
-python smoke_test.py --query "cosmic horror with elder gods" --tone 0.9 --scope 0.8
-```
+Data from [AniList](https://anilist.co), [Metron](https://metron.cloud) and [Comic Vine](https://comicvine.gamespot.com). Covers belong to their publishers and are shown from the sources' CDNs. Fonts: Archivo and Shantell Sans (SIL Open Font License).
 
-**Unit tests and evaluation**
-
-```bash
-pip install pytest pytest-cov scikit-learn
-pytest -v --cov=engine --cov=vibe
-python eval/evaluate.py      # downloads the model on first run
-```
-
-## 🗂️ Dataset
-
-`comics.csv` is a **synthetic catalog** of 10,000 titles (manga, manhua, webtoons, Western comics) with writer, artist, publisher, year, format, color style, genre, age rating, page count and more. It exists to exercise the retrieval pipeline at a realistic scale.
-
-## 📁 Project structure
-
-```text
-imazinthecomicz/
-├── imazinthecomics.py   # Streamlit app (UI + styling)
-├── engine.py            # SemanticMatrixEngine: load index, rank queries
-├── vibe.py              # Tone / scope feature derivation
-├── build_index.py       # Offline embedding + cache builder
-├── smoke_test.py        # CLI query runner
-├── tests/               # pytest suite (model stubbed)
-├── eval/                # labelled queries, evaluation script, results
-├── comics.csv           # 10k-title catalog
-├── catalog_cache.pkl    # Prebuilt catalog with features
-└── vector_cache.npy     # Prebuilt 10k x 384 embeddings
-```
-
-## 🗺️ Roadmap
-
-- [ ] Deploy on Streamlit Community Cloud
-- [ ] Real plot synopses for richer embeddings
-- [ ] Hybrid semantic + TF-IDF scoring for literal queries
-- [ ] Learn tone and scope from plot summaries instead of metadata rules
-- [ ] Filters for format, language and age rating
-- [ ] FAISS index for catalogs beyond 100k titles
-
-## 📄 License
-
-MIT © [Suryansh Verma](https://github.com/SlazzInC0de)
+MIT licensed. Built by Suryansh Verma.

@@ -1,53 +1,76 @@
-# Retrieval evaluation
+# Retrieval benchmark
 
-20 queries over 10,000 titles. Relevance is defined by catalog metadata (see `eval/queries.json`); paraphrase queries deliberately avoid the genre words.
-Sliders are left neutral (0.5) for the semantic engine.
+Catalog: 16964 titles, model `BAAI/bge-small-en-v1.5`, built 2026-10-23.
+35 queries from [`eval/queries.json`](queries.json). Relevance = AniList genre/tag labels (descriptive queries) or the series name (title queries).
 
-## All queries (20)
-
-| Ranker | P@5 | P@10 | MRR |
-|---|---:|---:|---:|
-| Random (expected) | 0.08 | 0.08 | n/a |
-| TF-IDF keywords | 0.34 | 0.34 | 0.41 |
-| Semantic engine | 0.45 | 0.41 | 0.58 |
-
-## Paraphrase queries only (17)
+## All queries
 
 | Ranker | P@5 | P@10 | MRR |
 |---|---:|---:|---:|
-| Random (expected) | 0.07 | 0.07 | n/a |
-| TF-IDF keywords | 0.22 | 0.22 | 0.31 |
-| Semantic engine | 0.39 | 0.35 | 0.51 |
+| random | 0.04 | 0.04 | n/a |
+| keyword | 0.50 | 0.44 | 0.69 |
+| semantic | 0.49 | 0.45 | 0.73 |
+| **hybrid** | 0.57 | 0.49 | 0.79 |
 
-## Explicit queries only (3)
+## Descriptive queries
 
 | Ranker | P@5 | P@10 | MRR |
 |---|---:|---:|---:|
-| Random (expected) | 0.16 | 0.16 | n/a |
-| TF-IDF keywords | 1.00 | 1.00 | 1.00 |
-| Semantic engine | 0.80 | 0.77 | 1.00 |
+| random | 0.05 | 0.05 | n/a |
+| keyword | 0.45 | 0.42 | 0.64 |
+| semantic | 0.45 | 0.43 | 0.68 |
+| **hybrid** | 0.53 | 0.47 | 0.76 |
 
-## Per query (P@5)
+## Title queries
 
-| Query | Type | Relevant titles | Random | TF-IDF | Semantic |
-|---|---|---:|---:|---:|---:|
-| spooky ghost and monster stories | paraphrase | 1,123 | 0.11 | 0.20 | 0.40 |
-| giant robots fighting in outer space | paraphrase | 977 | 0.10 | 0.60 | 0.20 |
-| a sweet love story between classmates | paraphrase | 1,318 | 0.13 | 0.20 | 0.80 |
-| a detective solving murders | paraphrase | 761 | 0.08 | 0.00 | 0.60 |
-| lighthearted funny stories about everyday life | paraphrase | 977 | 0.10 | 1.00 | 0.60 |
-| costumed heroes protecting the city | paraphrase | 1,962 | 0.20 | 0.80 | 0.00 |
-| an ordinary person transported to another world | paraphrase | 250 | 0.03 | 0.00 | 0.00 |
-| samurai and warriors in feudal times | paraphrase | 569 | 0.06 | 0.00 | 0.00 |
-| athletes competing to win the championship | paraphrase | 255 | 0.03 | 0.00 | 1.00 |
-| a rock band chasing their musical dreams | paraphrase | 129 | 0.01 | 0.00 | 0.80 |
-| players trapped inside a video game | paraphrase | 134 | 0.01 | 0.00 | 0.20 |
-| kung fu masters and fighting tournaments | paraphrase | 187 | 0.02 | 0.00 | 0.80 |
-| ancient gods and legendary myths | paraphrase | 209 | 0.02 | 0.00 | 0.00 |
-| a dark mind-bending thriller | paraphrase | 1,062 | 0.11 | 1.00 | 0.60 |
-| wizards, dragons and magical quests | paraphrase | 1,405 | 0.14 | 0.00 | 0.40 |
-| growing up and finding yourself as a teenager | paraphrase | 130 | 0.01 | 0.00 | 0.00 |
-| heroes caught up in government conspiracies | paraphrase | 399 | 0.04 | 0.00 | 0.20 |
-| Marvel superhero comics | explicit | 1,240 | 0.12 | 1.00 | 1.00 |
-| manga drawn in black and white | explicit | 3,143 | 0.31 | 1.00 | 1.00 |
-| comics painted in watercolor | explicit | 289 | 0.03 | 1.00 | 0.40 |
+| Ranker | P@5 | P@10 | MRR |
+|---|---:|---:|---:|
+| random | 0.00 | 0.00 | n/a |
+| keyword | 0.76 | 0.54 | 1.00 |
+| semantic | 0.76 | 0.56 | 1.00 |
+| **hybrid** | 0.80 | 0.60 | 1.00 |
+
+## Can raw similarity label a match?
+
+Cosine of relevant top-10 hits: median 0.611, 25th pct 0.580  
+Cosine of irrelevant top-10 hits: median 0.607, 75th pct 0.639
+
+## Per query (hybrid)
+
+| Query | Type | Relevant titles | P@10 | MRR |
+|---|---|---:|---:|---:|
+| someone who solves murders by finding clues | descriptive | 1190 | 0.8 | 1.00 |
+| spirits haunting an old house | descriptive | 1049 | 0.6 | 0.33 |
+| teenagers piloting giant robots | descriptive | 136 | 0.6 | 0.50 |
+| two classmates slowly falling for each other | descriptive | 8377 | 1.0 | 1.00 |
+| cozy calm everyday life where nothing bad happens | descriptive | 3210 | 0.5 | 1.00 |
+| an office worker dies and wakes up in another world | descriptive | 1441 | 0.3 | 0.50 |
+| high school volleyball team chasing the national title | descriptive | 418 | 1.0 | 1.00 |
+| a rock band chasing their dream of playing live | descriptive | 181 | 0.8 | 1.00 |
+| players stuck inside an online game | descriptive | 247 | 0.4 | 0.50 |
+| fighters training for a fighting tournament | descriptive | 364 | 0.5 | 0.33 |
+| ancient deities and legends walking among humans | descriptive | 341 | 0.3 | 0.50 |
+| two geniuses outsmarting each other with mind games | descriptive | 1185 | 0.1 | 1.00 |
+| students learning spells at an academy | descriptive | 1326 | 0.4 | 0.33 |
+| a chef making delicious dishes for customers | descriptive | 305 | 0.8 | 1.00 |
+| survivors after the dead rise and the world ends | descriptive | 295 | 0.6 | 1.00 |
+| blood drinking creatures of the night | descriptive | 232 | 0.5 | 1.00 |
+| reborn as the evil noble lady of a romance novel | descriptive | 204 | 0.3 | 1.00 |
+| swordsmen in feudal era japan | descriptive | 82 | 0.4 | 1.00 |
+| training the body and soul to reach immortality | descriptive | 181 | 0.4 | 1.00 |
+| fleets of starships at war across the galaxy | descriptive | 237 | 0.4 | 1.00 |
+| people forced into a game where losers die | descriptive | 347 | 0.7 | 0.50 |
+| romance between coworkers at a company | descriptive | 186 | 0.6 | 0.50 |
+| people born with special abilities protecting the city | descriptive | 567 | 0.3 | 1.00 |
+| a heartbreaking story that ends in loss | descriptive | 495 | 0.2 | 1.00 |
+| he returns to make those who betrayed him pay | descriptive | 362 | 0.3 | 1.00 |
+| a young girl transforms to fight evil with magic | descriptive | 106 | 0.3 | 0.50 |
+| slaying demons with a blade | descriptive | 624 | 0.0 | 0.06 |
+| going back in time to change what happened | descriptive | 427 | 0.5 | 1.00 |
+| street gangs and tough guys fighting for respect | descriptive | 268 | 0.4 | 1.00 |
+| prodigies playing go, shogi or chess | descriptive | 5 | 0.1 | 0.20 |
+| One Piece | title | 11 | 1.0 | 1.00 |
+| solo leveling | title | 2 | 0.2 | 1.00 |
+| berserk | title | 7 | 0.7 | 1.00 |
+| attack on titan | title | 8 | 0.8 | 1.00 |
+| chainsaw man | title | 3 | 0.3 | 1.00 |

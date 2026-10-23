@@ -2,22 +2,48 @@ name: Tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, v2]
   pull_request:
 
 jobs:
-  test:
+  api:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install pandas numpy pytest pytest-cov
-      - name: Tests with coverage
-        shell: bash
-        run: pytest -v --cov=engine --cov=vibe --cov-report=term-missing | tee pytest-output.txt
-      - name: Publish coverage
-        if: always()
-        run: |
-          { echo "## Coverage"; echo '```'; sed -n '/coverage:/,/TOTAL/p' pytest-output.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          cache: pip
+          cache-dependency-path: api/requirements-dev.txt
+      # fastembed is only needed at runtime; tests use a hashed bag-of-words embedder
+      - run: pip install fastapi uvicorn numpy pandas pyarrow scipy pytest httpx requests
+      - run: python -m pytest -q api/tests tests
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+        env:
+          API_URL: http://127.0.0.1:9
+      - run: npm audit --omit=dev --audit-level=high
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

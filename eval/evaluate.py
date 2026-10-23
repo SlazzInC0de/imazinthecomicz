@@ -1,17 +1,22 @@
 """
-Offline retrieval evaluation for IMAZINTHECOMICS.
+Retrieval benchmark for the search engine.
 
-Relevance labels come from catalog metadata: a title is relevant to a query
-when its Genre / Publisher / Theme matches the rule in eval/queries.json.
-"Paraphrase" queries avoid the genre words on purpose, so they test meaning
-rather than keyword overlap.
+Relevance comes from AniList metadata: a title counts as relevant to a
+descriptive query when it carries one of the query's genres or tags (tags only
+count at rank 50% or more). Descriptive queries avoid the label words on
+purpose, so keyword search cannot just look them up. Title queries check that
+a known series shows up first when typed by name.
 
-Compares three rankers on Precision@5, Precision@10 and MRR:
-  * random            - expected precision equals the share of relevant titles
-  * TF-IDF keywords   - lexical baseline over the same documents
-  * semantic engine   - all-MiniLM-L6-v2 cosine similarity (sliders neutral)
+Rankers compared on the same catalog:
+  random    expected precision = share of relevant titles
+  keyword   BM25 only
+  semantic  embedding cosine only
+  hybrid    what the API serves (blend + title bonus + popularity)
 
-Usage:  python eval/evaluate.py [--out eval/results.md]
+Also prints the cosine of relevant vs irrelevant top-10 hits, to check whether a
+fixed similarity cut-off could label results (so far it cannot, see results.md).
+
+Usage: python eval/evaluate.py [--out eval/results.md]   (writes eval/results.md by default)
 """
 import argparse
 import json
@@ -19,117 +24,107 @@ import os
 import sys
 
 import numpy as np
-import pandas as pd
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, "api"))
+
+from app.embedder import FastEmbedder  # noqa: E402
+from app.engine import MAX_RESULTS, Catalog, Filters, tokenize  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 
-def relevant_mask(catalog: pd.DataFrame, rule: dict) -> np.ndarray:
-    mask = np.zeros(len(catalog), dtype=bool)
-    for key, column in (("genre_any", "Genre"), ("publisher_any", "Studio/Publisher"), ("theme_any", "Theme (Color Style)")):
-        if key in rule:
-            text = catalog[column].astype(str).str.lower()
-            for term in rule[key]:
-                mask |= text.str.contains(term, regex=False).to_numpy()
-    return mask
+def relevant_mask(catalog: Catalog, rule: dict) -> np.ndarray:
+    out = np.zeros(len(catalog.records), dtype=bool)
+    genres, tags = set(rule.get("genres_any", [])), set(rule.get("tags_any", []))
+    titles = [t.lower() for t in rule.get("title_contains", [])]
+    for i, rec in enumerate(catalog.records):
+        # genre/tag relevance uses AniList's own labels only; Western genres are inferred by us
+        labelled = rec["source"] == "AniList"
+        if labelled and (genres & set(rec["genres"] or []) or tags & set(rec["tags"] or [])):
+            out[i] = True
+        elif titles:
+            names = [rec["title"].lower(), *[a.lower() for a in rec["alt_titles"] or []]]
+            out[i] = any(t in n for t in titles for n in names)
+    return out
 
 
-def metrics(ranked_idx: np.ndarray, relevant: np.ndarray) -> dict:
-    hits = relevant[ranked_idx]
-    first = np.flatnonzero(hits)
-    return {
-        "p5": hits[:5].mean(),
-        "p10": hits[:10].mean(),
-        "mrr": 1.0 / (first[0] + 1) if len(first) else 0.0,
-    }
+def metrics(order: np.ndarray, relevant: np.ndarray) -> dict:
+    hits = relevant[order[:10]]
+    first = np.flatnonzero(relevant[order[:100]])
+    return {"p5": hits[:5].mean(), "p10": hits.mean(), "mrr": 1 / (first[0] + 1) if len(first) else 0.0}
 
 
-def tfidf_ranker(docs):
-    from sklearn.feature_extraction.text import TfidfVectorizer
-
-    vec = TfidfVectorizer(stop_words="english", ngram_range=(1, 2), sublinear_tf=True)
-    matrix = vec.fit_transform(docs)
-
-    def rank(query):
-        scores = (matrix @ vec.transform([query]).T).toarray().ravel()
-        return np.argsort(-scores, kind="stable")
-
-    return rank
-
-
-def semantic_ranker(engine):
-    def rank(query):
-        results = engine.search(query=query, top_k=len(engine.catalog), tone=0.5, scope=0.5)
-        return results.index.to_numpy()
-
-    return rank
-
-
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--data", default=os.path.join(ROOT, "data"))
     parser.add_argument("--out", default=os.path.join(ROOT, "eval", "results.md"))
     args = parser.parse_args()
 
-    from engine import SemanticMatrixEngine
+    catalog = Catalog.load(Path(args.data), FastEmbedder)
+    if catalog.mode != "hybrid":
+        print("Embeddings or model missing, cannot run the benchmark.")
+        return 1
+    queries = json.load(open(os.path.join(ROOT, "eval", "queries.json"), encoding="utf-8"))
 
-    engine = SemanticMatrixEngine()
-    engine.index_catalog(os.path.join(ROOT, "catalog_cache.pkl"), os.path.join(ROOT, "vector_cache.npy"))
-    catalog = engine.catalog.reset_index(drop=True)
-    engine.catalog = catalog
+    rows, totals = [], {}
+    rel_cos, irr_cos = [], []
+    for item in queries:
+        relevant = relevant_mask(catalog, item)
+        if not relevant.any():
+            print(f"skip (no relevant titles in catalog): {item['query']}")
+            continue
+        qvec = catalog.embedder.embed_query(item["query"])
+        semantic = catalog.vectors @ qvec
+        keyword = catalog.bm25.score(tokenize(item["query"]))
+        # the API serves 96 ranked results in pages of up to 48; rank every method to the same depth
+        page1, _ = catalog.search(item["query"], Filters(), limit=48, offset=0)
+        page2, _ = catalog.search(item["query"], Filters(), limit=48, offset=48)
+        orders = {
+            "keyword": np.argsort(-keyword, kind="stable")[:MAX_RESULTS],
+            "semantic": np.argsort(-semantic, kind="stable")[:MAX_RESULTS],
+            "hybrid": np.array([h.index for h in page1 + page2], dtype=int),
+        }
+        scores = {name: metrics(order, relevant) for name, order in orders.items()}
+        scores["random"] = {"p5": relevant.mean(), "p10": relevant.mean(), "mrr": float("nan")}
+        for name, s in scores.items():
+            for k, v in s.items():
+                totals.setdefault(item["type"], {}).setdefault(name, {}).setdefault(k, []).append(v)
+                totals.setdefault("all", {}).setdefault(name, {}).setdefault(k, []).append(v)
+        for i in orders["hybrid"][:10]:
+            (rel_cos if relevant[i] else irr_cos).append(float(semantic[i]))
+        rows.append((item["query"], item["type"], int(relevant.sum()), scores))
 
-    with open(os.path.join(ROOT, "eval", "queries.json")) as fh:
-        queries = json.load(fh)
+    def fmt(v):
+        return "n/a" if np.isnan(v) else f"{v:.2f}"
 
-    rankers = {
-        "TF-IDF keywords": tfidf_ranker(catalog["semantic_doc"].astype(str).tolist()),
-        "Semantic engine": semantic_ranker(engine),
-    }
-
-    rows = []
-    for q in queries:
-        relevant = relevant_mask(catalog, q)
-        row = {"query": q["query"], "type": q["type"], "relevant": int(relevant.sum()), "random": relevant.mean()}
-        for name, rank in rankers.items():
-            for metric, value in metrics(rank(q["query"]), relevant).items():
-                row[f"{name}|{metric}"] = value
-        rows.append(row)
-    df = pd.DataFrame(rows)
-
-    def summary(sub):
-        out = {"Random (expected)": (sub["random"].mean(), sub["random"].mean(), None)}
-        for name in rankers:
-            out[name] = (sub[f"{name}|p5"].mean(), sub[f"{name}|p10"].mean(), sub[f"{name}|mrr"].mean())
-        return out
-
-    lines = [
-        "# Retrieval evaluation",
-        "",
-        f"{len(queries)} queries over {len(catalog):,} titles. Relevance is defined by catalog metadata "
-        "(see `eval/queries.json`); paraphrase queries deliberately avoid the genre words.",
-        "Sliders are left neutral (0.5) for the semantic engine.",
-        "",
-    ]
-    for label, sub in (("All queries", df), ("Paraphrase queries only", df[df["type"] == "paraphrase"]), ("Explicit queries only", df[df["type"] == "explicit"])):
-        lines += [f"## {label} ({len(sub)})", "", "| Ranker | P@5 | P@10 | MRR |", "|---|---:|---:|---:|"]
-        for name, (p5, p10, mrr) in summary(sub).items():
-            mrr_s = "n/a" if mrr is None else f"{mrr:.2f}"
-            lines.append(f"| {name} | {p5:.2f} | {p10:.2f} | {mrr_s} |")
+    lines = ["# Retrieval benchmark", "",
+             f"Catalog: {len(catalog.records)} titles, model `{catalog.meta.get('model')}`, built {catalog.meta.get('built_at')}.",
+             f"{len(rows)} queries from [`eval/queries.json`](queries.json). Relevance = AniList genre/tag labels "
+             "(descriptive queries) or the series name (title queries).", ""]
+    for group in ("all", "descriptive", "title"):
+        if group not in totals:
+            continue
+        lines += [f"## {group.capitalize()} queries", "", "| Ranker | P@5 | P@10 | MRR |", "|---|---:|---:|---:|"]
+        for name in ("random", "keyword", "semantic", "hybrid"):
+            s = totals[group][name]
+            bold = "**" if name == "hybrid" else ""
+            lines.append(f"| {bold}{name}{bold} | " + " | ".join(fmt(float(np.nanmean(s[k])) if not all(np.isnan(s[k])) else float('nan'))
+                                                     for k in ("p5", "p10", "mrr")) + " |")
         lines.append("")
-
-    lines += ["## Per query (P@5)", "", "| Query | Type | Relevant titles | Random | TF-IDF | Semantic |", "|---|---|---:|---:|---:|---:|"]
-    for _, r in df.iterrows():
-        lines.append(
-            f"| {r['query']} | {r['type']} | {r['relevant']:,} | {r['random']:.2f} | "
-            f"{r['TF-IDF keywords|p5']:.2f} | {r['Semantic engine|p5']:.2f} |"
-        )
-
-    text = "\n".join(lines) + "\n"
-    os.makedirs(os.path.dirname(args.out), exist_ok=True)
-    with open(args.out, "w") as fh:
-        fh.write(text)
-    print(text)
+    lines += ["## Can raw similarity label a match?", "",
+              f"Cosine of relevant top-10 hits: median {np.median(rel_cos):.3f}, 25th pct {np.percentile(rel_cos, 25):.3f}  ",
+              f"Cosine of irrelevant top-10 hits: median {np.median(irr_cos):.3f}, 75th pct {np.percentile(irr_cos, 75):.3f}", "",
+              "## Per query (hybrid)", "", "| Query | Type | Relevant titles | P@10 | MRR |", "|---|---|---:|---:|---:|"]
+    for query, qtype, n_rel, s in rows:
+        lines.append(f"| {query} | {qtype} | {n_rel} | {s['hybrid']['p10']:.1f} | {s['hybrid']['mrr']:.2f} |")
+    report = "\n".join(lines) + "\n"
+    print(report)
+    if args.out:
+        os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
+        with open(args.out, "w", encoding="utf-8") as fh:
+            fh.write(report)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

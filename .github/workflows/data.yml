@@ -1,0 +1,102 @@
+name: Build catalog
+
+# Fetches titles, builds the catalog and the embedding index, runs the
+# retrieval benchmark and commits the results back to the branch.
+# Sources: AniList (manga, manhwa, manhua), Metron and Comic Vine (Western).
+# Raw API dumps are cached in data/raw, so a source is only fetched again
+# when its dump is missing or a manual run asks for a refresh.
+
+on:
+  push:
+    branches: [main, v2]
+    paths:
+      - "pipeline/**"
+      - "eval/**"
+      - "api/app/**"
+      - ".github/workflows/data.yml"
+  workflow_dispatch:
+    inputs:
+      refresh:
+        description: "Fetch fresh data from AniList, Comic Vine and Metron"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: catalog-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # latest branch head, so a queued run sees data an earlier run committed
+          ref: ${{ github.ref_name }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pipeline/requirements.txt
+            api/requirements.txt
+      - run: pip install -r pipeline/requirements.txt -r api/requirements.txt
+
+      - name: Fetch AniList
+        if: ${{ inputs.refresh || hashFiles('data/raw/anilist.jsonl.gz') == '' }}
+        run: python pipeline/fetch_anilist.py --max 18000
+
+      - name: Fetch Comic Vine
+        continue-on-error: true
+        if: ${{ inputs.refresh || hashFiles('data/raw/comicvine.jsonl.gz') == '' }}
+        env:
+          COMICVINE_API_KEY: ${{ secrets.COMICVINE_API_KEY }}
+        run: python pipeline/fetch_comicvine.py --max 6000
+
+      - name: Fetch Metron
+        if: ${{ inputs.refresh || hashFiles('data/raw/metron.jsonl') == '' }}
+        continue-on-error: true
+        # Metron allows ~20 requests a minute; stop in time to build and commit what we have
+        timeout-minutes: 240
+        env:
+          METRON_API_TOKEN: ${{ secrets.METRON_API_TOKEN }}
+          METRON_USERNAME: ${{ secrets.METRON_USERNAME }}
+          METRON_PASSWORD: ${{ secrets.METRON_PASSWORD }}
+        run: python pipeline/fetch_metron.py --max 1500
+
+      - name: Keep a cut-off Metron dump when there is no earlier one
+        run: |
+          if [ ! -f data/raw/metron.jsonl ] && [ -f data/raw/metron.jsonl.partial ]; then
+            mv data/raw/metron.jsonl.partial data/raw/metron.jsonl
+          fi
+          rm -f data/raw/*.partial
+
+      - name: Build catalog
+        run: python pipeline/build_dataset.py
+
+      - name: Embed catalog
+        run: python pipeline/build_index.py
+
+      - name: Retrieval benchmark
+        run: |
+          if [ -f eval/evaluate.py ]; then
+            python eval/evaluate.py --out eval/results.md
+            cat eval/results.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Commit data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data eval/results.md 2>/dev/null || git add data
+          if git diff --cached --quiet; then
+            echo "No data changes."
+          else
+            git commit -m "data: rebuild catalog and index [skip ci]"
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi

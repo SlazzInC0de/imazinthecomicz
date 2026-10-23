@@ -1,0 +1,17 @@
+{
+  "model": "BAAI/bge-small-en-v1.5",
+  "dimensions": 384,
+  "titles": 16964,
+  "by_kind": {
+    "Manga": 12201,
+    "Manhwa": 3160,
+    "Manhua": 925,
+    "Western": 678
+  },
+  "by_source": {
+    "AniList": 16286,
+    "Metron": 678
+  },
+  "built_at": "2026-10-23",
+  "docs_sha256": "d2f3524a69d66a417e34fa50c9bb35cddbd4a3602d740d589bd44e3f89a3edac"
+}

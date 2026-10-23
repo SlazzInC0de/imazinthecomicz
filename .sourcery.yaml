@@ -1,0 +1,7 @@
+# Generated files and data dumps: nothing to review, and they push the PR diff
+# past the reviewer's size limit.
+ignore:
+  - data/
+  - eval/results.md
+  - web/package-lock.json
+  - comics.csv
