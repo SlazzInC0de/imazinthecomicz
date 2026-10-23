@@ -30,7 +30,7 @@ Catalog: 16954 titles, model `BAAI/bge-small-en-v1.5`, built 2026-10-23.
 | semantic | 0.76 | 0.56 | 1.00 |
 | **hybrid** | 0.80 | 0.60 | 1.00 |
 
-## Match label calibration
+## Can raw similarity label a match?
 
 Cosine of relevant top-10 hits: median 0.611, 25th pct 0.581  
 Cosine of irrelevant top-10 hits: median 0.608, 75th pct 0.639

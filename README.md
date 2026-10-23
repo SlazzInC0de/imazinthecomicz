@@ -11,7 +11,7 @@
 
 Keyword search fails on queries like *"a detective who can see ghosts"* when the synopsis says *"spirits"* and *"murder cases"*. This project ranks real titles by what their synopsis is about, and still finds a series when you type its name.
 
-<!-- CATALOG_STATS -->
+**Catalog:** 16,954 titles: 12,190 manga, 3,160 manhwa, 926 manhua (AniList) and 678 Western series (Metron), each with a synopsis, genres and a cover.
 
 ## What changed in v2
 
@@ -19,7 +19,7 @@ Version 1 was a Streamlit demo over 10,000 generated rows with made-up titles, e
 
 | | v1 | v2 |
 |---|---|---|
-| Data | Synthetic CSV | Real titles from AniList and Comic Vine, with synopses, ranked themes, creators and covers |
+| Data | Synthetic CSV | Real titles from AniList and Metron, with synopses, ranked themes, creators and covers |
 | What gets embedded | Title, genre, publisher | Synopsis, genres, themes, creators |
 | Ranking | Embeddings only | Embeddings + BM25, exact title bonus, popularity tie-break |
 | Vibe sliders | Hand-set by genre | Percentiles from AniList's ranked themes, off by default |
@@ -32,7 +32,8 @@ Version 1 was a Streamlit demo over 10,000 generated rows with made-up titles, e
 ```mermaid
 flowchart LR
     A[AniList GraphQL] --> F[pipeline/fetch_*.py]
-    C[Comic Vine API] --> F
+    M[Metron API] --> F
+    C[Comic Vine API, optional] --> F
     F --> B[build_dataset.py<br/>clean, merge, tone and scale]
     B --> I[build_index.py<br/>bge-small embeddings]
     I --> D[(catalog.parquet<br/>embeddings.npy)]
@@ -52,7 +53,19 @@ flowchart LR
 
 `eval/queries.json` has 35 queries. 30 describe a story without naming the genre or theme ("spirits haunting an old house" for Horror / Ghost), 5 are series names. Relevance comes from AniList's own labels. `python eval/evaluate.py` runs in CI after every catalog build and writes [`eval/results.md`](eval/results.md).
 
-<!-- BENCHMARK -->
+| Ranker | P@5 | P@10 | MRR |
+|---|---:|---:|---:|
+| Random | 0.04 | 0.04 | n/a |
+| Keyword (BM25) | 0.50 | 0.44 | 0.69 |
+| Semantic (embeddings) | 0.50 | 0.46 | 0.73 |
+| **Hybrid (served)** | **0.57** | **0.49** | **0.79** |
+
+On descriptive queries alone the blend lifts P@5 from 0.45 (keyword) and 0.46 (semantic) to 0.53. Typing a series name puts it first every time (MRR 1.00).
+
+What the numbers do not show:
+
+- Relevance comes from AniList labels, so a Western series that fits a query still counts as a miss (it has no AniList tags). The scores are a floor, not a ceiling.
+- The raw cosine of relevant and irrelevant top-10 hits overlaps almost completely (median 0.611 vs 0.608), so the site shows no "match %" badge. Rank order carries the signal, a single score does not.
 
 ## Security
 
@@ -89,7 +102,7 @@ python eval/evaluate.py
 
 1. **API on Hugging Face Spaces** (free CPU, 16 GB RAM). Create a write token at huggingface.co/settings/tokens. In this repo: Settings > Secrets and variables > Actions, add secret `HF_TOKEN` and variable `HF_SPACE` (for example `slazz/imazinthecomicz-api`). The **Deploy API** workflow builds the Space on every push to `main` that touches `api/` or `data/`. In the Space settings add `ALLOWED_ORIGINS` (your Vercel URL) and `PROXY_KEY` (any long random string).
 2. **Web on Vercel.** Import the repo, set the root directory to `web`, and add env vars `API_URL` (`https://<user>-<space>.hf.space`), `PROXY_KEY` (same value) and `SITE_URL` (the Vercel or custom domain).
-3. **Western comics**: add a free Comic Vine key as secret `COMICVINE_API_KEY` and run the **Build catalog** workflow with *refresh* ticked.
+3. **Western comics** come from Metron (secret `METRON_API_TOKEN`, free account, about 20 requests a minute). A Comic Vine key (`COMICVINE_API_KEY`) adds more. Run the **Build catalog** workflow with *refresh* ticked to fetch again.
 
 ## Project layout
 
@@ -104,6 +117,6 @@ tests/      pipeline tests
 
 ## Credits
 
-Data from [AniList](https://anilist.co) and [Comic Vine](https://comicvine.gamespot.com). Covers belong to their publishers and are shown from the sources' CDNs. Fonts: Archivo and Shantell Sans (SIL Open Font License).
+Data from [AniList](https://anilist.co), [Metron](https://metron.cloud) and [Comic Vine](https://comicvine.gamespot.com). Covers belong to their publishers and are shown from the sources' CDNs. Fonts: Archivo and Shantell Sans (SIL Open Font License).
 
 MIT licensed. Built by Suryansh Verma.
