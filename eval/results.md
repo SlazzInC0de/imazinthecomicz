@@ -9,7 +9,7 @@ Catalog: 16964 titles, model `BAAI/bge-small-en-v1.5`, built 2026-10-23.
 |---|---:|---:|---:|
 | random | 0.04 | 0.04 | n/a |
 | keyword | 0.50 | 0.44 | 0.69 |
-| semantic | 0.49 | 0.45 | 0.72 |
+| semantic | 0.49 | 0.45 | 0.73 |
 | **hybrid** | 0.57 | 0.49 | 0.79 |
 
 ## Descriptive queries
@@ -32,7 +32,7 @@ Catalog: 16964 titles, model `BAAI/bge-small-en-v1.5`, built 2026-10-23.
 
 ## Can raw similarity label a match?
 
-Cosine of relevant top-10 hits: median 0.611, 25th pct 0.581  
+Cosine of relevant top-10 hits: median 0.611, 25th pct 0.580  
 Cosine of irrelevant top-10 hits: median 0.607, 75th pct 0.639
 
 ## Per query (hybrid)
