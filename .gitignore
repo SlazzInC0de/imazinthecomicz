@@ -2,9 +2,15 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
-.streamlit/secrets.toml
-.DS_Store
-
-# catalog_cache.pkl and vector_cache.npy are committed on purpose:
-# they let the app start without re-embedding 10k titles.
 .coverage
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# web
+node_modules/
+web/.next/
+web/out/
+*.tsbuildinfo
+next-env.d.ts

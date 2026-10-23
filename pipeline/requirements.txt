@@ -1,0 +1,5 @@
+requests>=2.32
+pandas>=2.2
+pyarrow>=17
+numpy>=1.26
+fastembed>=0.4

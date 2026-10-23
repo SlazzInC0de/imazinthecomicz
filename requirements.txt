@@ -1,4 +1,0 @@
-sentence-transformers>=3.0
-streamlit>=1.40
-pandas>=2.2
-numpy>=1.26

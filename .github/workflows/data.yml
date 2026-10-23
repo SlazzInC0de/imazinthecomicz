@@ -1,0 +1,76 @@
+name: Build catalog
+
+# Fetches titles, builds the catalog and the embedding index, runs the
+# retrieval benchmark and commits the results back to the branch.
+# Raw API dumps are cached in data/raw, so a source is only fetched again
+# when its dump is missing or a manual run asks for a refresh.
+
+on:
+  push:
+    branches: [main, v2]
+    paths:
+      - "pipeline/**"
+      - "eval/**"
+      - ".github/workflows/data.yml"
+  workflow_dispatch:
+    inputs:
+      refresh:
+        description: "Fetch fresh data from AniList and Comic Vine"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: catalog-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 200
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pipeline/requirements.txt
+      - run: pip install -r pipeline/requirements.txt
+
+      - name: Fetch AniList
+        if: ${{ inputs.refresh || hashFiles('data/raw/anilist.jsonl.gz') == '' }}
+        run: python pipeline/fetch_anilist.py --max 18000
+
+      - name: Fetch Comic Vine
+        if: ${{ inputs.refresh || hashFiles('data/raw/comicvine.jsonl.gz') == '' }}
+        env:
+          COMICVINE_API_KEY: ${{ secrets.COMICVINE_API_KEY }}
+        run: python pipeline/fetch_comicvine.py --max 6000
+
+      - name: Build catalog
+        run: python pipeline/build_dataset.py
+
+      - name: Embed catalog
+        run: python pipeline/build_index.py
+
+      - name: Retrieval benchmark
+        run: |
+          if [ -f eval/evaluate.py ]; then
+            python eval/evaluate.py --out eval/results.md
+            cat eval/results.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Commit data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data eval/results.md 2>/dev/null || git add data
+          if git diff --cached --quiet; then
+            echo "No data changes."
+          else
+            git commit -m "data: rebuild catalog and index [skip ci]"
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
