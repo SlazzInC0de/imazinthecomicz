@@ -57,8 +57,10 @@ jobs:
         run: python pipeline/fetch_comicvine.py --max 6000
 
       - name: Fetch Metron
-        if: ${{ inputs.refresh || hashFiles('data/raw/metron.jsonl.gz') == '' }}
+        if: ${{ inputs.refresh || hashFiles('data/raw/metron.jsonl') == '' }}
         continue-on-error: true
+        # Metron allows ~20 requests a minute; stop in time to build and commit what we have
+        timeout-minutes: 240
         env:
           METRON_API_TOKEN: ${{ secrets.METRON_API_TOKEN }}
           METRON_USERNAME: ${{ secrets.METRON_USERNAME }}

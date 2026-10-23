@@ -28,8 +28,15 @@ TAG_MIN_RANK = 50
 def read_jsonl(path: str):
     if not os.path.exists(path):
         return []
-    with gzip.open(path, "rt", encoding="utf-8") as fh:
-        return [json.loads(line) for line in fh if line.strip()]
+    opener = gzip.open if path.endswith(".gz") else open
+    rows = []
+    with opener(path, "rt", encoding="utf-8") as fh:
+        for line in fh:
+            try:
+                rows.append(json.loads(line))
+            except json.JSONDecodeError:
+                pass  # a run cut off mid-write can leave half a line at the end
+    return rows
 
 
 def creators_from_staff(media: dict) -> list[str]:
@@ -219,7 +226,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--anilist", default="data/raw/anilist.jsonl.gz")
     parser.add_argument("--comicvine", default="data/raw/comicvine.jsonl.gz")
-    parser.add_argument("--metron", default="data/raw/metron.jsonl.gz")
+    parser.add_argument("--metron", default="data/raw/metron.jsonl")
     parser.add_argument("--out", default="data/catalog.parquet")
     args = parser.parse_args()
 

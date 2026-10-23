@@ -12,10 +12,12 @@ so the walk is:
   3. fetch one cover per kept series from its issue list
 Requests are spaced out and follow the X-RateLimit / Retry-After headers.
 
-Usage: python pipeline/fetch_metron.py --max 1500 --out data/raw/metron.jsonl.gz
+Output is plain JSON lines flushed after every series, so a run that gets cut
+off by a time limit still leaves a valid file with everything fetched so far.
+
+Usage: python pipeline/fetch_metron.py --max 1500 --out data/raw/metron.jsonl
 """
 import argparse
-import gzip
 import json
 import os
 import re
@@ -64,9 +66,6 @@ class Client:
             if resp.status_code in (401, 403):
                 print(f"::error::Metron refused the token ({resp.status_code}). Check the METRON_* secrets.")
             resp.raise_for_status()
-            remaining = resp.headers.get("X-RateLimit-Remaining")
-            if remaining is not None and remaining.isdigit() and int(remaining) < 2:
-                time.sleep(61)
             return resp.json()
         raise RuntimeError(f"{url} failed after retries")
 
@@ -96,7 +95,7 @@ def main() -> int:
     parser.add_argument("--min-issues", type=int, default=6)
     parser.add_argument("--gap", type=float, default=3.2, help="seconds between requests")
     parser.add_argument("--budget", type=int, default=4800, help="requests allowed this run")
-    parser.add_argument("--out", default="data/raw/metron.jsonl.gz")
+    parser.add_argument("--out", default="data/raw/metron.jsonl")
     args = parser.parse_args()
 
     token = os.environ.get("METRON_API_TOKEN", "").strip()
@@ -119,7 +118,7 @@ def main() -> int:
     print(f"Metron: {len(listing)} series listed, {len(candidates)} candidates", flush=True)
 
     written = 0
-    with gzip.open(args.out, "wt", encoding="utf-8") as out:
+    with open(args.out, "w", encoding="utf-8") as out:
         for s in candidates:
             if written >= args.max:
                 break
@@ -139,6 +138,7 @@ def main() -> int:
                 print(f"  skip series {s['id']}: {exc}")
                 continue
             out.write(json.dumps(detail, ensure_ascii=False) + "\n")
+            out.flush()
             written += 1
             if written % 100 == 0:
                 print(f"kept {written} series ({client.used} requests)", flush=True)
