@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
     inputs:
       refresh:
-        description: "Fetch fresh data from AniList and Comic Vine"
+        description: "Fetch fresh data from AniList, Comic Vine and Metron"
         type: boolean
         default: false
 
@@ -29,7 +29,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 200
+    timeout-minutes: 330
     steps:
       - uses: actions/checkout@v5
         with:
@@ -54,6 +54,15 @@ jobs:
         env:
           COMICVINE_API_KEY: ${{ secrets.COMICVINE_API_KEY }}
         run: python pipeline/fetch_comicvine.py --max 6000
+
+      - name: Fetch Metron
+        if: ${{ inputs.refresh || hashFiles('data/raw/metron.jsonl.gz') == '' }}
+        continue-on-error: true
+        env:
+          METRON_API_TOKEN: ${{ secrets.METRON_API_TOKEN }}
+          METRON_USERNAME: ${{ secrets.METRON_USERNAME }}
+          METRON_PASSWORD: ${{ secrets.METRON_PASSWORD }}
+        run: python pipeline/fetch_metron.py --max 1500
 
       - name: Build catalog
         run: python pipeline/build_dataset.py

@@ -8,7 +8,7 @@ const csp = [
   // Next inlines its hydration data as <script> tags, hence 'unsafe-inline'. No outside scripts.
   `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: https://s4.anilist.co https://img.anili.st https://comicvine.gamespot.com",
+  "img-src 'self' data: https://s4.anilist.co https://img.anili.st https://comicvine.gamespot.com https://static.metron.cloud https://metron.cloud",
   "font-src 'self'",
   `connect-src 'self'${dev ? " ws:" : ""}`,
   "object-src 'none'",

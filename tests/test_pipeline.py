@@ -123,3 +123,19 @@ def test_anilist_walks_past_the_5000_cap(tmp_path, monkeypatch):
     ids = [json.loads(line)["id"] for line in gzip.open(out, "rt")]
     assert len(ids) == len(set(ids)) >= 11000
     assert ids[:11000] == list(range(11000))
+
+
+def test_metron_row_maps_genres_and_status():
+    from build_dataset import metron_row
+
+    series = {"id": 42, "name": "Saga", "desc": "An epic space opera about two soldiers from warring alien races "
+              "who fall in love and go on the run with their newborn daughter across the galaxy.",
+              "year_began": 2012, "year_end": None, "issue_count": 66, "series_type": {"name": "Ongoing Series"},
+              "publisher": {"name": "Image"}, "genres": [{"name": "Science Fiction"}, {"name": "Romance"}],
+              "cover": "https://static.metron.cloud/x.jpg", "resource_url": "https://metron.cloud/series/saga/"}
+    row = metron_row(series)
+    assert row["id"] == "mt-42" and row["kind"] == "Western" and row["status"] == "Ongoing"
+    assert row["genres"][:2] == ["Sci-Fi", "Romance"] and row["length"] == 66
+    assert metron_row({**series, "desc": "short"}) is None
+    df = build([], [], [series])
+    assert df.iloc[0]["source"] == "Metron"

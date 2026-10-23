@@ -49,6 +49,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             Titles, synopses and covers come from{" "}
             <a href="https://anilist.co" rel="noopener">
               AniList
+            </a>
+            ,{" "}
+            <a href="https://metron.cloud" rel="noopener">
+              Metron
             </a>{" "}
             and{" "}
             <a href="https://comicvine.gamespot.com" rel="noopener">

@@ -19,7 +19,7 @@ export function matchText(label: string | null | undefined): string | null {
 }
 
 export function sourceName(c: Pick<Comic, "source">): string {
-  return c.source === "Comic Vine" ? "Comic Vine" : "AniList";
+  return c.source === "AniList" ? "AniList" : c.source;
 }
 
 /** Short meta description for search engines and link previews. */

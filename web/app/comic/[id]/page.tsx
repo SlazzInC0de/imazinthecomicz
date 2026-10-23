@@ -12,7 +12,7 @@ import styles from "./comic.module.css";
 
 type Params = Promise<{ id: string }>;
 
-const ID = /^(al|cv)-\d{1,9}$/;
+const ID = /^(al|cv|mt)-\d{1,9}$/;
 
 async function getComic(id: string): Promise<Comic | null> {
   if (!ID.test(id)) return null;

@@ -23,7 +23,9 @@ export default function About() {
       <h2>Where the titles come from</h2>
       <p>
         Manga, manhwa and manhua come from <a href="https://anilist.co">AniList</a>, with their synopses, genres, ranked
-        themes, creators and covers. Western series come from <a href="https://comicvine.gamespot.com">Comic Vine</a>.
+        themes, creators and covers. Western series come from <a href="https://metron.cloud">Metron</a> (and{" "}
+        <a href="https://comicvine.gamespot.com">Comic Vine</a> when a key is set): the longest-running series with a real
+        synopsis, plus the cover of their first issue.
         Light novels, adult titles and entries with no real synopsis are left out. The catalog is rebuilt by a GitHub
         Actions job, so the numbers on the home page are always from the last build.
       </p>

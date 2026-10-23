@@ -1,5 +1,5 @@
 """
-Merge the raw AniList and Comic Vine dumps into one clean catalog.
+Merge the raw AniList, Comic Vine and Metron dumps into one clean catalog.
 
 Every row ends up with the same fields whatever its source, plus the text that
 gets embedded (`doc`) and the tone / scope percentiles behind the vibe sliders.
@@ -123,6 +123,60 @@ def comicvine_row(vol: dict) -> dict | None:
     }
 
 
+METRON_GENRES = {
+    "Super-Hero": "Superhero", "Superhero": "Superhero", "Science Fiction": "Sci-Fi", "Humor": "Comedy",
+    "Horror": "Horror", "Crime": "Crime", "Fantasy": "Fantasy", "Romance": "Romance", "War": "War",
+    "Western": "Western", "Adventure": "Adventure", "Mystery": "Mystery", "Drama": "Drama", "Sports": "Sports",
+    "Espionage": "Thriller", "Teen": "Slice of Life", "Historical": "Drama",
+}
+
+
+def metron_row(series: dict) -> dict | None:
+    description = clean_description(series.get("desc"))
+    if len(description) < MIN_DESCRIPTION:
+        return None
+    description = first_paragraphs(description)
+    title = (series.get("name") or series.get("series") or "").strip()
+    if not title:
+        return None
+    genres = []
+    for g in series.get("genres") or []:
+        mapped = METRON_GENRES.get(g.get("name") if isinstance(g, dict) else str(g))
+        if mapped and mapped not in genres:
+            genres.append(mapped)
+    for g in western_genres(f"{title} {description}"):
+        if g not in genres and len(genres) < 4:
+            genres.append(g)
+    tone, scope = raw_scores(genres, [])
+    series_type = ((series.get("series_type") or {}).get("name") or "")
+    status = "Completed" if series.get("year_end") else ("Cancelled" if "cancel" in series_type.lower() else "Ongoing")
+    issues = series.get("issue_count") or 0
+    return {
+        "id": f"mt-{series['id']}",
+        "source": "Metron",
+        "title": title,
+        "alt_titles": [],
+        "kind": "Western",
+        "format": "One-shot" if "one-shot" in series_type.lower() else "Series",
+        "year": series.get("year_began"),
+        "status": status,
+        "length": issues or None,
+        "length_unit": "issues",
+        "score": None,
+        "popularity": issues * 40,
+        "genres": genres,
+        "tags": [],
+        "creators": [],
+        "publisher": (series.get("publisher") or {}).get("name"),
+        "description": description,
+        "cover": series.get("cover"),
+        "cover_color": None,
+        "url": series.get("resource_url"),
+        "tone_raw": tone,
+        "scope_raw": scope,
+    }
+
+
 def embedding_doc(row: dict) -> str:
     parts = [row["title"]]
     if row["alt_titles"]:
@@ -139,16 +193,18 @@ def embedding_doc(row: dict) -> str:
     return ". ".join(parts) + ".\n" + row["description"]
 
 
-def build(anilist: list, comicvine: list) -> pd.DataFrame:
-    rows = [r for r in map(anilist_row, anilist) if r] + [r for r in map(comicvine_row, comicvine) if r]
+def build(anilist: list, comicvine: list, metron: list | None = None) -> pd.DataFrame:
+    rows = ([r for r in map(anilist_row, anilist) if r] + [r for r in map(comicvine_row, comicvine) if r]
+            + [r for r in map(metron_row, metron or []) if r])
     if not rows:
         raise SystemExit("No rows to build from. Run the fetchers first.")
     for row in rows:
         row["doc"] = embedding_doc(row)
     df = pd.DataFrame(rows).drop_duplicates("id")
-    # Same title from both sources: keep the richer AniList entry.
+    # Same title and year from two sources: keep one (AniList, then Comic Vine, then Metron).
     df["_key"] = df["title"].str.lower().str.replace(r"[^a-z0-9]", "", regex=True) + df["year"].astype(str)
-    df = df.sort_values("source").drop_duplicates("_key").drop(columns="_key")
+    order = {"AniList": 0, "Comic Vine": 1, "Metron": 2}
+    df = df.sort_values("source", key=lambda col: col.map(order)).drop_duplicates("_key").drop(columns="_key")
     df = df.sort_values("popularity", ascending=False).reset_index(drop=True)
     df["tone"] = to_percentiles(df["tone_raw"]).round(4)
     df["scope"] = to_percentiles(df["scope_raw"]).round(4)
@@ -163,10 +219,11 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--anilist", default="data/raw/anilist.jsonl.gz")
     parser.add_argument("--comicvine", default="data/raw/comicvine.jsonl.gz")
+    parser.add_argument("--metron", default="data/raw/metron.jsonl.gz")
     parser.add_argument("--out", default="data/catalog.parquet")
     args = parser.parse_args()
 
-    df = build(read_jsonl(args.anilist), read_jsonl(args.comicvine))
+    df = build(read_jsonl(args.anilist), read_jsonl(args.comicvine), read_jsonl(args.metron))
     df.to_parquet(args.out, index=False)
     print(f"Catalog: {len(df)} titles -> {args.out}")
     print(df["kind"].value_counts().to_string())

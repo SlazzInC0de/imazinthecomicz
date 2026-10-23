@@ -2,13 +2,13 @@
 
 > Search engine for manga, manhwa, manhua and Western comics. You describe a story in plain English and it returns titles whose synopsis matches, ranked by a blend of embedding similarity and BM25 keyword scoring.
 
-Data comes from AniList (manga, manhwa, manhua) and Comic Vine (Western series). Light novels and adult titles are excluded.
+Data comes from AniList (manga, manhwa, manhua) and Metron / Comic Vine (Western series). Light novels and adult titles are excluded.
 
 ## Pages
 
 - [Search](/search?q=a%20detective%20who%20can%20see%20ghosts): `/search?q=<description>`. Optional filters: `kind` (Manga, Manhwa, Manhua, Western, repeatable), `genre` (repeatable), `year_min`, `year_max`, `status` (Completed, Ongoing, Hiatus, Cancelled), `min_score` (0-100), `tone` and `scope` (0 to 1).
 - [Browse](/search): the catalog with the same filters and `sort` (popular, score, newest).
-- Comic pages: `/comic/<id>`, where ids look like `al-30013` (AniList) or `cv-4050` (Comic Vine). Each has the synopsis, genres, themes, creators, tone and scale, and up to 12 similar titles.
+- Comic pages: `/comic/<id>`, where ids look like `al-30013` (AniList) `mt-1203` (Metron) or `cv-4050` (Comic Vine). Each has the synopsis, genres, themes, creators, tone and scale, and up to 12 similar titles.
 - [How the search works](/about)
 
 ## Source

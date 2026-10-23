@@ -18,7 +18,7 @@ log = logging.getLogger("imazin")
 
 Kind = Literal["Manga", "Manhwa", "Manhua", "Western"]
 Sort = Literal["popular", "score", "newest"]
-ID_PATTERN = r"^(al|cv)-\d{1,9}$"
+ID_PATTERN = r"^(al|cv|mt)-\d{1,9}$"
 
 
 def create_app(settings: Settings | None = None, catalog: Catalog | None = None) -> FastAPI:
