@@ -33,9 +33,9 @@ VIBE_STRENGTH = 0.35
 EXACT_TITLE_BONUS = 0.5
 PARTIAL_TITLE_BONUS = 0.15
 MAX_RESULTS = 96
-# Raw cosine cut-offs for the label shown on each result, tuned on eval/queries.json.
-STRONG_MATCH = 0.70
-GOOD_MATCH = 0.62
+# No "strong / good match" label: on eval/queries.json the cosine of relevant and
+# irrelevant top-10 hits overlaps almost completely (median 0.610 vs 0.607), so a
+# fixed cut-off would mislabel results. Rank order is what carries the signal.
 
 STOPWORDS = set(
     "a an and are as at be by for from has have in into is it its of on or that the their them they this to "
@@ -285,14 +285,6 @@ class Catalog:
 
     def detail(self, comic_id: str) -> dict:
         return dict(self.records[self.by_id[comic_id]])
-
-    @staticmethod
-    def match_label(semantic: float | None) -> str | None:
-        if semantic is None:
-            return None
-        if semantic >= STRONG_MATCH:
-            return "strong"
-        return "good" if semantic >= GOOD_MATCH else "loose"
 
     def _build_facets(self) -> dict:
         genres: dict[str, int] = {}

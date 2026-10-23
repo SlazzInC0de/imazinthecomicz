@@ -26,7 +26,7 @@ def test_search_returns_cards_with_match_info(client):
     body = r.json()
     assert r.status_code == 200 and body["mode"] == "hybrid" and len(body["results"]) == 2
     top = body["results"][0]
-    assert top["id"] == "al-1" and top["match"]["label"] in {"strong", "good", "loose"}
+    assert top["id"] == "al-1" and isinstance(top["match"]["matched"], list)
     assert "doc" not in top and "description" not in top
 
 

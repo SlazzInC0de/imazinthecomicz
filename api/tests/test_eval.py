@@ -19,4 +19,4 @@ def test_benchmark_runs_end_to_end(tmp_path, frame, monkeypatch, capsys):
     monkeypatch.setattr(sys, "argv", ["evaluate.py", "--data", str(tmp_path), "--out", str(tmp_path / "r.md")])
     assert evaluate.main() == 0
     report = (tmp_path / "r.md").read_text()
-    assert "| **hybrid** |" in report and "Match label calibration" in report
+    assert "| **hybrid** |" in report and "Can raw similarity label a match?" in report

@@ -18,7 +18,6 @@ export interface Card {
   source: string;
   blurb: string;
   match?: {
-    label: "strong" | "good" | "loose" | null;
     matched: string[];
     semantic: number | null;
     score: number;

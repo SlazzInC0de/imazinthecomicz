@@ -11,13 +11,6 @@ export function lengthText(c: Pick<Card, "length" | "length_unit">): string | nu
   return `${c.length.toLocaleString("en-US")} ${unit}`;
 }
 
-export function matchText(label: string | null | undefined): string | null {
-  if (label === "strong") return "Strong match";
-  if (label === "good") return "Good match";
-  if (label === "loose") return "Loose match";
-  return null;
-}
-
 export function sourceName(c: Pick<Comic, "source">): string {
   return c.source === "AniList" ? "AniList" : c.source;
 }

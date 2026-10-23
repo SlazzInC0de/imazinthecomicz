@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Props = {
   src: string | null;
@@ -12,6 +12,12 @@ type Props = {
 /** Cover art with a lettered stand-in when the image is missing or fails. */
 export default function Cover({ src, title, color, priority = false }: Props) {
   const [failed, setFailed] = useState(!src);
+  const img = useRef<HTMLImageElement>(null);
+  // an image that failed before React hydrated never fires onError for us
+  useEffect(() => {
+    const el = img.current;
+    if (el && el.complete && el.naturalWidth === 0) setFailed(true);
+  }, []);
   return (
     <div className="cover" style={{ background: color ?? "#26323a" }}>
       {failed ? (
@@ -21,6 +27,7 @@ export default function Cover({ src, title, color, priority = false }: Props) {
         // so they skip Next image optimisation.
         // eslint-disable-next-line @next/next/no-img-element
         <img
+          ref={img}
           src={src!}
           alt={`Cover of ${title}`}
           width={460}

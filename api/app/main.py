@@ -120,7 +120,7 @@ def create_app(settings: Settings | None = None, catalog: Catalog | None = None)
         results = []
         for hit in hits:
             card = cat.card(hit.index)
-            card["match"] = {"label": cat.match_label(hit.semantic), "matched": hit.matched,
+            card["match"] = {"matched": hit.matched,
                              "semantic": None if hit.semantic is None else round(hit.semantic, 4),
                              "score": round(hit.score, 4)}
             results.append(card)

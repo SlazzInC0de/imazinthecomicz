@@ -45,8 +45,9 @@ export default function About() {
       </ul>
       <p>
         The two scores are blended 70 to 30. A title that matches your query exactly jumps to the top, and popularity
-        only breaks near ties. The match label on each result (strong, good, loose) comes from the raw similarity, with
-        cut-offs taken from the benchmark below.
+        only breaks near ties. There is no &ldquo;95% match&rdquo; badge on results: the benchmark showed that raw
+        similarity scores of good and bad hits overlap almost completely, so a percentage would be made up. Results only
+        say which of your words they share with a title&apos;s genres or themes.
       </p>
 
       <h2>Tone and scale</h2>

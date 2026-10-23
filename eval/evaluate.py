@@ -13,8 +13,8 @@ Rankers compared on the same catalog:
   semantic  embedding cosine only
   hybrid    what the API serves (blend + title bonus + popularity)
 
-Also prints the cosine of relevant vs irrelevant top-10 hits, which is how the
-"strong / good / loose" match labels in app/engine.py are calibrated.
+Also prints the cosine of relevant vs irrelevant top-10 hits, to check whether a
+fixed similarity cut-off could label results (so far it cannot, see results.md).
 
 Usage: python eval/evaluate.py [--out eval/results.md]
 """
@@ -109,7 +109,7 @@ def main() -> int:
             lines.append(f"| {bold}{name}{bold} | " + " | ".join(fmt(float(np.nanmean(s[k])) if not all(np.isnan(s[k])) else float('nan'))
                                                      for k in ("p5", "p10", "mrr")) + " |")
         lines.append("")
-    lines += ["## Match label calibration", "",
+    lines += ["## Can raw similarity label a match?", "",
               f"Cosine of relevant top-10 hits: median {np.median(rel_cos):.3f}, 25th pct {np.percentile(rel_cos, 25):.3f}  ",
               f"Cosine of irrelevant top-10 hits: median {np.median(irr_cos):.3f}, 75th pct {np.percentile(irr_cos, 75):.3f}", "",
               "## Per query (hybrid)", "", "| Query | Type | Relevant titles | P@10 | MRR |", "|---|---|---:|---:|---:|"]

@@ -13,6 +13,7 @@ import styles from "./comic.module.css";
 type Params = Promise<{ id: string }>;
 
 const ID = /^(al|cv|mt)-\d{1,9}$/;
+const READABLE = /^[\p{Script=Latin}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{N}\p{P}\p{Zs}\p{S}]+$/u;
 
 async function getComic(id: string): Promise<Comic | null> {
   if (!ID.test(id)) return null;
@@ -41,16 +42,24 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   };
 }
 
-function Scale({ label, low, high, value }: { label: string; low: string; high: string; value: number }) {
+function Scale(props: {
+  label: string;
+  low: string;
+  high: string;
+  lowMore: string;
+  highMore: string;
+  value: number;
+}) {
+  const { label, low, high, value } = props;
   const pct = Math.round(value * 100);
-  const toward = value >= 0.5 ? high.toLowerCase() : low.toLowerCase();
-  const share = value >= 0.5 ? pct : 100 - pct;
+  const toward = value >= 0.5 ? props.highMore : props.lowMore;
+  const share = Math.min(99, value >= 0.5 ? pct : 100 - pct);
   return (
     <div className={styles.scale}>
       <div className={styles.scaleHead}>
         <span>{label}</span>
         <span className={styles.scaleNote}>
-          {Math.abs(value - 0.5) < 0.1 ? "middle of the catalog" : `${toward} than ${share}% of the catalog`}
+          {Math.abs(value - 0.5) < 0.1 ? "about average" : `${toward} than ${share}% of titles`}
         </span>
       </div>
       <div className={styles.track} role="img" aria-label={`${label}: ${pct} out of 100, from ${low} to ${high}`}>
@@ -90,6 +99,8 @@ export default async function ComicPage({ params }: { params: Params }) {
     ["Publisher", comic.publisher],
   ];
   const paragraphs = comic.description.split(/\n{2,}/).filter(Boolean);
+  // romaji and the original script; AniList synonyms also hold fan translations in many languages
+  const altTitles = comic.alt_titles.filter((t) => READABLE.test(t)).slice(0, 2);
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -119,7 +130,7 @@ export default async function ComicPage({ params }: { params: Params }) {
       <div className={styles.info}>
         <p className={styles.meta}>{metaLine(comic)}</p>
         <h1 className={styles.title}>{comic.title}</h1>
-        {comic.alt_titles.length > 0 && <p className={styles.alt}>Also known as {comic.alt_titles.slice(0, 3).join(", ")}</p>}
+        {altTitles.length > 0 && <p className={styles.alt}>Also known as {altTitles.join(", ")}</p>}
 
         <div className={styles.synopsis}>
           {paragraphs.map((p, i) => (
@@ -160,8 +171,15 @@ export default async function ComicPage({ params }: { params: Params }) {
         </dl>
 
         <div className={styles.scales}>
-          <Scale label="Tone" low="Lighter" high="Darker" value={comic.tone} />
-          <Scale label="Scale" low="Grounded" high="World-ending" value={comic.scope} />
+          <Scale label="Tone" low="Lighter" high="Darker" lowMore="lighter" highMore="darker" value={comic.tone} />
+          <Scale
+            label="Scale"
+            low="Grounded"
+            high="World-ending"
+            lowMore="more grounded"
+            highMore="bigger in scale"
+            value={comic.scope}
+          />
         </div>
 
         {comic.url && (

@@ -42,7 +42,7 @@ flowchart LR
 
 **Pipeline** (`pipeline/`, runs in GitHub Actions): pulls titles in popularity order, drops light novels, adult titles and entries without a real synopsis, merges both sources into one schema and embeds a document per title. The raw API dumps are committed, so rebuilding the index does not hit the APIs again.
 
-**Search** (`api/app/engine.py`): every query is scored by cosine similarity against the embedding matrix and by BM25 over the same text (title counted three times). Both are min-max scaled over the filtered candidates and blended 70/30. An exact title match gets a bonus and popularity breaks near ties. Results carry a match label (strong, good, loose) from the raw cosine and the genres or themes your words hit.
+**Search** (`api/app/engine.py`): every query is scored by cosine similarity against the embedding matrix and by BM25 over the same text (title counted three times). Both are min-max scaled over the filtered candidates and blended 70/30. An exact title match gets a bonus and popularity breaks near ties. Results show which genres or themes your words hit. There is no "92% match" badge: the benchmark showed raw cosine scores of relevant and irrelevant hits overlap almost completely, so a percentage would be invented.
 
 **Tone and scale**: AniList ranks how strongly each theme applies (Tragedy 87%, Iyashikei 92%). Known themes and genres push a title toward darker or lighter, and grounded or world-ending, weighted by rank. Each title then gets its percentile in the catalog, so the slider middle is the catalog middle. Sliders are off until switched on and scale scores by at most 35% each.
 
