@@ -97,3 +97,29 @@ def test_build_merges_sources_and_adds_doc():
     night = df[df["id"] == "al-1"].iloc[0]
     assert night["doc"].startswith("Night Walker") and "Themes: Tragedy" in night["doc"]
     assert np.isclose(df.loc[df["id"] == "al-1", "tone"].iloc[0], 1.0)
+
+
+def test_anilist_walks_past_the_5000_cap(tmp_path, monkeypatch):
+    import gzip
+    import json
+
+    import fetch_anilist
+
+    # 12,000 fake titles, popularity falling with plenty of ties
+    items = [{"id": i, "popularity": 20000 - i // 7} for i in range(12000)]
+
+    def fake_page(session, page, per_page, below):
+        pool = [m for m in items if below is None or m["popularity"] < below]
+        if page * per_page > 5000:
+            raise RuntimeError("AniList refuses pages past 5000 results")
+        chunk = pool[(page - 1) * per_page: page * per_page]
+        return {"media": chunk, "pageInfo": {"hasNextPage": page * per_page < len(pool)}}
+
+    out = tmp_path / "a.jsonl.gz"
+    monkeypatch.setattr(fetch_anilist, "fetch_page", fake_page)
+    monkeypatch.setattr(fetch_anilist.time, "sleep", lambda s: None)
+    monkeypatch.setattr(sys, "argv", ["x", "--max", "11000", "--out", str(out)])
+    assert fetch_anilist.main() == 0
+    ids = [json.loads(line)["id"] for line in gzip.open(out, "rt")]
+    assert len(ids) == len(set(ids)) >= 11000
+    assert ids[:11000] == list(range(11000))

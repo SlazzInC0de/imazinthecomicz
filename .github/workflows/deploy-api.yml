@@ -1,0 +1,49 @@
+name: Deploy API
+
+# Pushes the API and the catalog to a Hugging Face Docker Space.
+# Needs two repository settings (see README, "Deploy"):
+#   secret   HF_TOKEN  - a Hugging Face write token
+#   variable HF_SPACE  - the space id, e.g. slazz/imazinthecomicz-api
+
+on:
+  push:
+    branches: [main]
+    paths: ["api/**", "data/**", ".github/workflows/deploy-api.yml"]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ vars.HF_SPACE != '' }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Assemble space
+        run: |
+          mkdir -p space/api space/data
+          cp -r api/app api/requirements.txt space/api/
+          cp data/catalog.parquet data/embeddings.npy data/meta.json space/data/
+          cp api/Dockerfile space/Dockerfile
+          cat > space/README.md <<'EOF'
+          ---
+          title: IMAZINTHECOMICS API
+          sdk: docker
+          app_port: 7860
+          pinned: false
+          ---
+          Search API for https://github.com/SlazzInC0de/imazinthecomicz
+          EOF
+          sed -i 's/^          //' space/README.md
+      - name: Upload to Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE: ${{ vars.HF_SPACE }}
+        run: |
+          pip install -q "huggingface_hub>=0.25"
+          python - <<'PY'
+          import os
+          from huggingface_hub import HfApi
+          api = HfApi(token=os.environ["HF_TOKEN"])
+          api.create_repo(os.environ["HF_SPACE"], repo_type="space", space_sdk="docker", exist_ok=True)
+          api.upload_folder(folder_path="space", repo_id=os.environ["HF_SPACE"], repo_type="space",
+                            commit_message="Deploy from GitHub")
+          PY

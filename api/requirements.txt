@@ -1,0 +1,7 @@
+fastapi>=0.115
+uvicorn>=0.30
+numpy>=1.26
+pandas>=2.2
+pyarrow>=17
+scipy>=1.13
+fastembed>=0.4
