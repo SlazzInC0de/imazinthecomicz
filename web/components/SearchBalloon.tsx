@@ -22,6 +22,9 @@ export default function SearchBalloon({ defaultValue = "", autoFocus = false, hi
           autoComplete="off"
           enterKeyHint="search"
         />
+        <svg className="tail" viewBox="0 0 40 34" aria-hidden="true" focusable="false">
+          <path d="M3 1 C 9 13, 8 23, 1 33 C 15 27, 27 16, 37 1" />
+        </svg>
       </label>
       {hidden.map(([name, value], i) => (
         <input key={`${name}-${i}`} type="hidden" name={name} value={value} />

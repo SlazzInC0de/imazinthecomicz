@@ -1,0 +1,17 @@
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /api
+    schedule: { interval: weekly }
+  - package-ecosystem: pip
+    directory: /pipeline
+    schedule: { interval: monthly }
+  - package-ecosystem: npm
+    directory: /web
+    schedule: { interval: weekly }
+    groups:
+      next:
+        patterns: ["next", "eslint-config-next", "react", "react-dom", "@types/react*"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: monthly }

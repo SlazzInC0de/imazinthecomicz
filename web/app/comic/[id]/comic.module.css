@@ -164,7 +164,7 @@
   }
 
   .coverPanel {
-    position: static;
+    position: relative;
     width: min(260px, 70%);
   }
 }

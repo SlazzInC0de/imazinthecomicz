@@ -135,6 +135,18 @@ h2 {
   text-decoration: underline;
 }
 
+@media (max-width: 520px) {
+  .masthead {
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    padding-block: 14px;
+  }
+
+  .masthead nav {
+    gap: 16px;
+  }
+}
+
 /* ---------------------------------------------------------------- crop marks
    Layout lines in non-photo blue that overshoot the panel corners, the way a
    page looks on the drawing board before it is inked. Used on one panel per page. */
@@ -153,13 +165,15 @@ h2 {
   border-style: solid;
 }
 
+/* top and bottom edges carried past the corners */
 .blueline::before {
-  inset: -14px -1px;
+  inset: -2px -16px;
   border-width: 1px 0;
 }
 
+/* left and right edges carried past the corners */
 .blueline::after {
-  inset: -1px -14px;
+  inset: -16px -2px;
   border-width: 0 1px;
 }
 
@@ -178,35 +192,39 @@ h2 {
 
 .balloon {
   position: relative;
-  flex: 1 1 420px;
+  flex: 1 1 min(420px, 100%);
+  min-width: 0;
+  max-width: 860px;
   border: 2.5px solid var(--ink);
-  border-radius: 46% 54% 52% 48% / 58% 50% 50% 42%;
+  border-radius: 50%;
   background: #fff;
-  padding: 18px 34px;
-  margin-bottom: 18px;
+  padding: 22px 9% 24px;
+  margin-bottom: 30px;
 }
 
-/* the tail points down-left, at whoever is asking */
-.balloon::after {
-  content: "";
+/* the tail points down-left, at whoever is talking */
+.balloon .tail {
   position: absolute;
-  left: 18%;
-  bottom: -22px;
-  width: 30px;
-  height: 26px;
-  background: #fff;
-  border-right: 2.5px solid var(--ink);
-  border-bottom: 2.5px solid var(--ink);
-  transform: skewX(-38deg);
-  clip-path: polygon(0 0, 100% 0, 100% 100%);
+  left: 26%;
+  bottom: -29px;
+  width: 40px;
+  height: 34px;
+  overflow: visible;
+}
+
+.balloon .tail path {
+  fill: #fff;
+  stroke: var(--ink);
+  stroke-width: 2.5px;
+  stroke-linejoin: round;
 }
 
 .balloon:focus-within {
   border-color: var(--pencil);
 }
 
-.balloon:focus-within::after {
-  border-color: var(--pencil);
+.balloon:focus-within .tail path {
+  stroke: var(--pencil);
 }
 
 .balloon input {
@@ -214,7 +232,7 @@ h2 {
   border: 0;
   background: transparent;
   font-family: var(--letter);
-  font-size: var(--step-2);
+  font-size: clamp(1.1rem, 3.6vw, var(--step-2));
   font-weight: 500;
   font-variation-settings: "INFM" 55;
   color: var(--ink);
@@ -376,6 +394,10 @@ h2 {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 16px;
   align-content: start;
+}
+
+.card.splash .cover-link {
+  align-self: start;
 }
 
 .card.splash .card-title {
