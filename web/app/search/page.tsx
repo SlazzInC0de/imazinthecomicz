@@ -115,7 +115,8 @@ export default async function SearchPage({ searchParams }: { searchParams: Param
 
       <aside className={styles.side}>
         <FilterPanel className={styles.filterToggle} active={filtersActive}>
-          <Filters state={state} facets={facets} />
+          {/* keyed by the URL state: Back/Forward remounts the form so every control matches the URL */}
+          <Filters key={JSON.stringify(state)} state={state} facets={facets} />
         </FilterPanel>
       </aside>
 
