@@ -14,6 +14,7 @@ from .embedder import HashingEmbedder, get_embedder
 VIBE_WEIGHT = 0.15
 TITLE_WEIGHT = 0.35  # exact / contained title match, incl. names implied by nicknames
 POPULARITY_WEIGHT = 0.05  # small tie-breaker toward well-known series
+MIN_SEMANTIC = 0.15  # below this a title is unrelated unless its name matched; keeps "nothing found" honest
 PUBLIC_FIELDS = (
     "id", "source", "kind", "title", "alt_title", "description", "genres", "tags", "publisher",
     "creators", "year", "status", "country", "score", "volumes", "chapters", "cover", "color",
@@ -85,7 +86,8 @@ class SearchEngine:
         modifier = 1.0 - VIBE_WEIGHT * np.abs(self.tone - tone) - VIBE_WEIGHT * np.abs(self.scope - scope)
         title = self._title_scores([query, *names])
         score = semantic * modifier + TITLE_WEIGHT * title + POPULARITY_WEIGHT * self.pop_norm
-        composite = np.where(self._mask(kind), score, -1.0)
+        relevant = (semantic >= MIN_SEMANTIC) | (title > 0)
+        composite = np.where(self._mask(kind) & relevant, score, -1.0)
         top = np.argsort(-composite)[:k]
         return [
             {**public(self.catalog[i]), "match": round(float(semantic[i]), 4), "score_composite": round(float(composite[i]), 4)}
@@ -108,6 +110,17 @@ class SearchEngine:
     def trending(self, kind: str | None = None, k: int = 12) -> list[dict]:
         mask = self._mask(kind)
         return [public(self.catalog[i]) for i in self.pop_rank if mask[i]][:k]
+
+    def daily_pick(self, day: int, pool: int = 150) -> dict:
+        """Same pick all day, rotates daily through popular titles that have a cover and a description."""
+        candidates = [i for i in self.pop_rank if self.catalog[i].get("cover") and len(self.catalog[i].get("description") or "") > 80][:pool]
+        if not candidates:
+            candidates = list(self.pop_rank[:pool])
+        return public(self.catalog[candidates[day % len(candidates)]])
+
+    def random(self, rng: np.random.Generator, kind: str | None = None) -> dict:
+        idx = np.flatnonzero(self._mask(kind))
+        return public(self.catalog[int(rng.choice(idx))])
 
     def stats(self) -> dict:
         kinds: dict[str, int] = {}

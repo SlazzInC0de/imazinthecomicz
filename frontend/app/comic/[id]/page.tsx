@@ -1,82 +1,110 @@
-import ComicCard from "../../ComicCard";
-import { api, fandomUrl, type Comic } from "@/lib";
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import Cover from "@/components/Cover";
+import ResultPanel from "@/components/ResultPanel";
+import PeelLink from "@/components/PeelLink";
+import { api, fandomUrl, tryApi, type Comic } from "@/lib";
 
-export default async function ComicPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  let comic: Comic;
-  let similar: Comic[] = [];
+type Props = { params: Promise<{ id: string }> };
+
+async function getComic(id: string) {
   try {
-    comic = await api<Comic>(`/api/comics/${encodeURIComponent(id)}`);
-    similar = (await api<{ results: Comic[] }>(`/api/comics/${encodeURIComponent(id)}/similar?k=8`)).results;
-  } catch (e) {
-    return (
-      <div className="detail-missing">
-        <h2>Comic not found</h2>
-        <p>{(e as Error).message}</p>
-        <a href="/">← Back to search</a>
-      </div>
-    );
+    return await api<Comic>(`/api/comics/${encodeURIComponent(id)}`);
+  } catch {
+    return null;
   }
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const comic = await getComic((await params).id);
+  return comic ? { title: comic.title, description: comic.description.slice(0, 160) } : { title: "Not found" };
+}
+
+const vibeWord = (v: number, low: string, mid: string, high: string) => (v > 0.6 ? high : v < 0.4 ? low : mid);
+
+export default async function ComicPage({ params }: Props) {
+  const { id } = await params;
+  const comic = await getComic(id);
+  if (!comic) notFound();
+  const similar = (await tryApi<{ results: Comic[] }>(`/api/comics/${encodeURIComponent(id)}/similar?k=8`))?.results ?? [];
+  const facts: [string, string | number | null][] = [
+    ["Type", comic.kind],
+    ["Started", comic.year],
+    ["Status", comic.status],
+    ["Publisher", comic.publisher],
+    ["AniList score", comic.score ? `★ ${comic.score} / 10` : null],
+    [comic.source === "metron" ? "Issues" : "Chapters", comic.chapters],
+    ["Creators", comic.creators.join(", ") || null],
+  ];
 
   return (
-    <>
-      <a href="/" className="back">
+    <div className="wrap detail-wrap">
+      <PeelLink href="/" className="back">
         ← Back to search
-      </a>
-      <article className="detail" style={{ ["--accent" as string]: comic.color ?? "#ffd43b" }}>
+      </PeelLink>
+      <article className="detail">
         <div className="detail-cover">
-          {comic.cover ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={comic.cover} alt={`${comic.title} cover`} />
-          ) : (
-            <div className="cover-fallback">{comic.title}</div>
-          )}
+          <Cover comic={comic} eager />
         </div>
         <div className="detail-body">
-          <span className="badge">{comic.kind}</span>
           <h1>{comic.title}</h1>
-          {comic.alt_title && <p className="alt">{comic.alt_title}</p>}
+          {comic.alt_title && <p className="detail-alt">{comic.alt_title}</p>}
           <dl className="facts">
-            {comic.year && (<><dt>Started</dt><dd>{comic.year}</dd></>)}
-            {comic.status && (<><dt>Status</dt><dd>{comic.status}</dd></>)}
-            {comic.publisher && (<><dt>Publisher</dt><dd>{comic.publisher}</dd></>)}
-            {comic.score && (<><dt>Score</dt><dd>★ {comic.score} / 10</dd></>)}
-            {comic.chapters && (<><dt>{comic.source === "metron" ? "Issues" : "Chapters"}</dt><dd>{comic.chapters}</dd></>)}
-            {comic.creators.length > 0 && (<><dt>Creators</dt><dd>{comic.creators.join(", ")}</dd></>)}
+            {facts
+              .filter(([, v]) => v)
+              .map(([k, v]) => (
+                <div key={k}>
+                  <dt>{k}</dt>
+                  <dd>{v}</dd>
+                </div>
+              ))}
           </dl>
-          <div className="chips">
-            {[...comic.genres, ...comic.tags].map((g) => (
-              <span key={g}>{g}</span>
-            ))}
+          {[...comic.genres, ...comic.tags].length > 0 && (
+            <ul className="tags" aria-label="Genres and themes">
+              {[...comic.genres, ...comic.tags].map((g) => (
+                <li key={g}>{g}</li>
+              ))}
+            </ul>
+          )}
+          <p className="detail-desc">{comic.description || "No synopsis on file yet."}</p>
+          <div className="detail-vibe">
+            <span>
+              Tone: <b>{vibeWord(comic.tone, "light", "balanced", "dark")}</b>
+            </span>
+            <span>
+              Scope: <b>{vibeWord(comic.scope, "street-level", "mid", "cosmic")}</b>
+            </span>
           </div>
-          <p className="desc">{comic.description || "No description available."}</p>
-          <div className="vibe">
-            <div>
-              Tone <meter min={0} max={1} value={comic.tone} /> {comic.tone > 0.6 ? "dark" : comic.tone < 0.4 ? "light" : "balanced"}
-            </div>
-            <div>
-              Scope <meter min={0} max={1} value={comic.scope} /> {comic.scope > 0.6 ? "cosmic" : comic.scope < 0.4 ? "street-level" : "mid"}
-            </div>
-          </div>
-          <div className="links">
+          <div className="detail-links">
             {comic.url && (
-              <a className="source-link" href={comic.url} target="_blank" rel="noreferrer">
+              <a className="btn btn-primary" href={comic.url} target="_blank" rel="noreferrer">
                 View on {comic.source === "anilist" ? "AniList" : "Metron"} ↗
               </a>
             )}
-            <a className="source-link fandom" href={fandomUrl(comic)} target="_blank" rel="noreferrer">
+            <a className="btn btn-fandom" href={fandomUrl(comic)} target="_blank" rel="noreferrer">
               {comic.kind === "Marvel" ? "Marvel Fandom" : comic.kind === "DC" ? "DC Fandom" : "Fandom wiki"} ↗
             </a>
+            {comic.wiki_url && (
+              <a className="btn" href={comic.wiki_url} target="_blank" rel="noreferrer">
+                Wikipedia ↗
+              </a>
+            )}
           </div>
         </div>
       </article>
 
-      <h2 className="section-title">If you like this, try</h2>
-      <section className="grid">
-        {similar.map((c) => (
-          <ComicCard key={c.id} comic={c} />
-        ))}
-      </section>
-    </>
+      {similar.length > 0 && (
+        <section id="similar" aria-labelledby="similar-title">
+          <h2 id="similar-title" className="section-title">
+            If you like this, try
+          </h2>
+          <ol className="comic-grid">
+            {similar.map((c) => (
+              <ResultPanel key={c.id} comic={c} />
+            ))}
+          </ol>
+        </section>
+      )}
+    </div>
   );
 }

@@ -27,7 +27,10 @@ v1 below runs on a synthetic 10k catalog. v2 rebuilds the app on **real data**:
 - **Western comics** from [Metron](https://metron.cloud) (series, publishers, genres, issue #1 covers), split into **Marvel**, **DC** and other **Western** publishers
 - **Backend:** FastAPI (`backend/`) with the same text-first, vibe-tuned ranking, now driven by real tags
 - **Search that knows fandom:** nicknames like "web swinger" or "dark knight" expand to Spider-Man / Batman (`backend/aliases.py`), titles match even when typed as "spiderman", and well-known flagship series win ties
-- **Frontend:** Next.js (`frontend/`) with search, tone/scope sliders, type filter, detail pages and "if you like this" recommendations
+- **Frontend:** Next.js (`frontend/`) with a comic-book look: daily pick hero, semantic search, tone/scope sliders, type filters, comic-page or grid results, title pages with Fandom/Wikipedia links, and "if you like this" recommendations
+  - Hover a result: the ink plates slip out of register and a caption box pops in with the synopsis
+  - Page-turn transition between pages, halftone parallax in the hero, marker-pen cursor
+  - Responsive down to phones, keyboard accessible, and calm under `prefers-reduced-motion`
 
 ```
 backend/

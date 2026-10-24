@@ -1,4 +1,6 @@
 export const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// Server components can use a private URL (e.g. inside Docker); falls back to the public one.
+const SERVER_API = process.env.API_URL ?? API;
 
 export type Comic = {
   id: string;
@@ -20,25 +22,34 @@ export type Comic = {
   cover: string | null;
   color: string | null;
   url: string | null;
+  wiki_url?: string | null;
   tone: number;
   scope: number;
   match?: number;
 };
 
-export async function api<T>(path: string): Promise<T> {
-  const res = await fetch(`${API}${path}`, { cache: "no-store" });
+export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const base = typeof window === "undefined" ? SERVER_API : API;
+  const res = await fetch(`${base}${path}`, { cache: "no-store", ...init });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.detail ?? `Request failed (${res.status})`);
+    throw new Error(typeof body.detail === "string" ? body.detail : `Request failed (${res.status})`);
   }
   return res.json();
 }
 
-/**
- * Fandom wiki link. Marvel and DC go to their dedicated wikis, where series
- * pages are named "<Title> Vol <n>". Everything else uses Fandom's cross-wiki
- * search, which surfaces the series' own wiki (e.g. onepiece.fandom.com).
- */
+/** Returns null instead of throwing, for decorative sections that should simply hide when the API is down. */
+export async function tryApi<T>(path: string): Promise<T | null> {
+  try {
+    return await api<T>(path);
+  } catch {
+    return null;
+  }
+}
+
+export const KINDS = ["all", "Manga", "Manhwa", "Manhua", "Marvel", "DC", "Western"] as const;
+export type Kind = (typeof KINDS)[number];
+
 export function fandomUrl(c: Pick<Comic, "title" | "kind" | "volumes">): string {
   const wiki = c.kind === "Marvel" ? "marvel" : c.kind === "DC" ? "dc" : null;
   if (wiki) {
@@ -48,4 +59,13 @@ export function fandomUrl(c: Pick<Comic, "title" | "kind" | "volumes">): string 
   return `https://community.fandom.com/wiki/Special:Search?query=${encodeURIComponent(c.title)}&scope=cross-wiki`;
 }
 
-export const KINDS = ["all", "Manga", "Manhwa", "Manhua", "Marvel", "DC", "Western"] as const;
+/** One short line under a title: year, then publisher or AniList score. Each value says what it is. */
+export function metaLine(c: Comic): string {
+  return [c.year, c.publisher, c.score ? `★ ${c.score} on AniList` : null].filter(Boolean).join(" · ");
+}
+
+export function shortText(text: string, max = 170): string {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max);
+  return cut.slice(0, cut.lastIndexOf(" ")) + "...";
+}

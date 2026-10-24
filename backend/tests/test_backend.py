@@ -224,3 +224,23 @@ def test_wiki_lookup_rejects_unrelated_page():
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
         assert wiki.lookup(client, c)["wiki_title"] == "The Amazing Spider-Man"
         assert wiki.lookup(client, {**c, "title": "Zzz"}) is None
+
+
+def test_daily_pick_and_random(engine):
+    a, b = engine.daily_pick(1), engine.daily_pick(1)
+    assert a["id"] == b["id"] and a["cover"]
+    assert engine.random(np.random.default_rng(0), "Manhwa")["kind"] == "Manhwa"
+
+
+def test_pick_and_random_api(engine):
+    app_module.app.dependency_overrides[app_module.get_engine] = lambda: engine
+    try:
+        client = TestClient(app_module.app)
+        assert client.get("/api/pick").json()["id"]
+        assert client.get("/api/random", params={"kind": "Marvel"}).json()["kind"] == "Marvel"
+    finally:
+        app_module.app.dependency_overrides.clear()
+
+
+def test_unrelated_query_returns_nothing(engine):
+    assert engine.search("zzqx qwvv", k=5) == []

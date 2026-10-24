@@ -3,9 +3,11 @@
 Run:  uvicorn backend.app:app --reload --port 8000
 """
 import os
+from datetime import date
 from functools import lru_cache
 from pathlib import Path
 
+import numpy as np
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -54,6 +56,16 @@ def search(
 @app.get("/api/trending")
 def trending(kind: str | None = None, k: int = Query(12, ge=1, le=50), engine: SearchEngine = Depends(get_engine)):
     return {"results": engine.trending(kind, k)}
+
+
+@app.get("/api/pick")
+def pick(engine: SearchEngine = Depends(get_engine)):
+    return engine.daily_pick(date.today().toordinal())
+
+
+@app.get("/api/random")
+def random_comic(kind: str | None = None, engine: SearchEngine = Depends(get_engine)):
+    return engine.random(np.random.default_rng(), kind)
 
 
 @app.get("/api/comics/{comic_id}")
