@@ -1,5 +1,5 @@
 import ComicCard from "../../ComicCard";
-import { api, wikiUrl, type Comic } from "@/lib";
+import { api, fandomUrl, type Comic } from "@/lib";
 
 export default async function ComicPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -64,8 +64,8 @@ export default async function ComicPage({ params }: { params: Promise<{ id: stri
                 View on {comic.source === "anilist" ? "AniList" : "Metron"} ↗
               </a>
             )}
-            <a className="source-link wiki" href={wikiUrl(comic.title)} target="_blank" rel="noreferrer">
-              Wikipedia ↗
+            <a className="source-link fandom" href={fandomUrl(comic)} target="_blank" rel="noreferrer">
+              {comic.kind === "Marvel" ? "Marvel Fandom" : comic.kind === "DC" ? "DC Fandom" : "Fandom wiki"} ↗
             </a>
           </div>
         </div>

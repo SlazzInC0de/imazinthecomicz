@@ -34,9 +34,18 @@ export async function api<T>(path: string): Promise<T> {
   return res.json();
 }
 
-/** Wikipedia "Go" search: opens the article directly when the title matches, otherwise shows search results. */
-export function wikiUrl(title: string): string {
-  return `https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(title)}&go=Go`;
+/**
+ * Fandom wiki link. Marvel and DC go to their dedicated wikis, where series
+ * pages are named "<Title> Vol <n>". Everything else uses Fandom's cross-wiki
+ * search, which surfaces the series' own wiki (e.g. onepiece.fandom.com).
+ */
+export function fandomUrl(c: Pick<Comic, "title" | "kind" | "volumes">): string {
+  const wiki = c.kind === "Marvel" ? "marvel" : c.kind === "DC" ? "dc" : null;
+  if (wiki) {
+    const query = c.volumes ? `${c.title} Vol ${c.volumes}` : c.title;
+    return `https://${wiki}.fandom.com/wiki/Special:Search?query=${encodeURIComponent(query)}`;
+  }
+  return `https://community.fandom.com/wiki/Special:Search?query=${encodeURIComponent(c.title)}&scope=cross-wiki`;
 }
 
 export const KINDS = ["all", "Manga", "Manhwa", "Manhua", "Marvel", "DC", "Western"] as const;

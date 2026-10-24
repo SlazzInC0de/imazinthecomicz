@@ -138,7 +138,7 @@ main { max-width: 1180px; margin: 0 auto; padding: 0 16px 48px; }
 }
 .links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
 .links .source-link { margin-top: 0; }
-.source-link.wiki { background: var(--card); color: var(--ink); border-color: var(--ink); }
+.source-link.fandom { background: #fa005a; color: #fff; }
 .source-link.wiki:hover, .source-link:hover { transform: translate(-2px, -2px); box-shadow: 3px 3px 0 var(--ink); }
 .detail-missing { text-align: center; padding: 60px 0; }
 .detail-missing h2 { font-family: "Bangers", cursive; font-size: 3rem; margin: 0; }
