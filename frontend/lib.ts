@@ -1,4 +1,5 @@
-export const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// 127.0.0.1, not localhost: Node resolves localhost to IPv6 (::1) first, and uvicorn listens on IPv4 only.
+export const API = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 // Server components can use a private URL (e.g. inside Docker); falls back to the public one.
 const SERVER_API = process.env.API_URL ?? API;
 

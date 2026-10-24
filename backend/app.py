@@ -18,7 +18,7 @@ DATA_DIR = Path(os.environ.get("IMAZIN_DATA", Path(__file__).resolve().parent / 
 app = FastAPI(title="IMAZINTHECOMICS API", version="2.0.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.environ.get("IMAZIN_CORS", "http://localhost:3000").split(","),
+    allow_origins=os.environ.get("IMAZIN_CORS", "http://localhost:3000,http://127.0.0.1:3000").split(","),
     allow_methods=["GET"],
     allow_headers=["*"],
 )
