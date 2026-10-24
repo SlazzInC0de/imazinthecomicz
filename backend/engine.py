@@ -8,13 +8,16 @@ from pathlib import Path
 
 import numpy as np
 
+from .aliases import expand, normalize
 from .embedder import HashingEmbedder, get_embedder
 
 VIBE_WEIGHT = 0.15
+TITLE_WEIGHT = 0.35  # exact / contained title match, incl. names implied by nicknames
+POPULARITY_WEIGHT = 0.05  # small tie-breaker toward well-known series
 PUBLIC_FIELDS = (
     "id", "source", "kind", "title", "alt_title", "description", "genres", "tags", "publisher",
     "creators", "year", "status", "country", "score", "volumes", "chapters", "cover", "color",
-    "url", "tone", "scope",
+    "url", "wiki_url", "tone", "scope",
 )
 
 
@@ -34,6 +37,14 @@ class SearchEngine:
         self.scope = np.array([c["scope"] for c in catalog], dtype=np.float32)
         pop = np.array([c.get("popularity") or 0 for c in catalog], dtype=np.float32)
         self.pop_rank = np.argsort(-pop)
+        # popularity is on different scales per source, so normalize within each source
+        log_pop = np.log1p(pop)
+        self.pop_norm = np.zeros_like(log_pop)
+        for source in {c["source"] for c in catalog}:
+            idx = np.array([c["source"] == source for c in catalog])
+            top = log_pop[idx].max() or 1.0
+            self.pop_norm[idx] = log_pop[idx] / top
+        self.norm_titles = [f" {normalize(c['title'])} " for c in catalog]
 
     @classmethod
     def load(cls, data_dir: Path) -> "SearchEngine":
@@ -49,11 +60,32 @@ class SearchEngine:
             return np.ones(len(self.catalog), dtype=bool)
         return np.array([c["kind"].lower() == kind.lower() for c in self.catalog])
 
+    def _title_scores(self, candidates: list[str]) -> np.ndarray:
+        """1.0 exact title, 0.8 title contains the name, 0.6 query contains the whole title."""
+        cands = [f" {normalize(c)} " for c in candidates if len(normalize(c)) >= 3]
+        scores = np.zeros(len(self.catalog), dtype=np.float32)
+        for i, title in enumerate(self.norm_titles):
+            best = 0.0
+            for cand in cands:
+                if cand == title:
+                    best = 1.0
+                    break
+                if cand in title:
+                    best = max(best, 0.8)
+                elif len(title) > 5 and title in cand:
+                    best = max(best, 0.6)
+            scores[i] = best
+        return scores
+
     def search(self, query: str, tone: float = 0.5, scope: float = 0.5, kind: str | None = None, k: int = 12) -> list[dict]:
-        q = self.embedder.encode([query])[0]
+        names = expand(query)
+        text = f"{query}. {', '.join(names)}" if names else query
+        q = self.embedder.encode([text])[0]
         semantic = np.clip(self.vectors @ q, 0.0, 1.0)
         modifier = 1.0 - VIBE_WEIGHT * np.abs(self.tone - tone) - VIBE_WEIGHT * np.abs(self.scope - scope)
-        composite = np.where(self._mask(kind), semantic * modifier, -1.0)
+        title = self._title_scores([query, *names])
+        score = semantic * modifier + TITLE_WEIGHT * title + POPULARITY_WEIGHT * self.pop_norm
+        composite = np.where(self._mask(kind), score, -1.0)
         top = np.argsort(-composite)[:k]
         return [
             {**public(self.catalog[i]), "match": round(float(semantic[i]), 4), "score_composite": round(float(composite[i]), 4)}

@@ -27,12 +27,18 @@ def _read_jsonl(path: Path) -> list[dict]:
 def build_catalog(raw_dir: Path = RAW_DIR) -> list[dict]:
     catalog = [from_anilist(m) for m in _read_jsonl(raw_dir / "anilist.jsonl")]
     catalog += [from_metron(s) for s in _read_jsonl(raw_dir / "metron.jsonl")]
+    wiki = {w["id"]: w for w in _read_jsonl(raw_dir / "wiki.jsonl") if w.get("wiki_extract")}
     seen, unique = set(), []
     for c in catalog:
         key = (c["title"].lower(), c["source"], c["year"])
         if key in seen:
             continue
         seen.add(key)
+        w = wiki.get(c["id"])
+        c["wiki_extract"] = w["wiki_extract"] if w else None
+        c["wiki_url"] = w.get("wiki_url") if w else None
+        if not c["description"] and c["wiki_extract"]:
+            c["description"] = c["wiki_extract"]
         c["tone"] = round(tone_score(c["genres"], c["tags"]), 3)
         c["scope"] = round(scope_score(c["genres"], c["tags"]), 3)
         c["doc"] = semantic_doc(c)

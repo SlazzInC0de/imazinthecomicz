@@ -42,6 +42,14 @@ ANILIST = [
         "genres": ["Action", "Fantasy"], "tags": [], "coverImage": {"large": None, "color": None}, "staff": {"edges": []},
     },
 ]
+SPIDEY = [
+    {"id": 20, "name": "The Amazing Spider-Man", "year_began": 1963, "issue_count": 900, "volume": 1, "desc": "",
+     "publisher": {"id": 1, "name": "Marvel"}, "series_type": None, "genres": [{"id": 1, "name": "Super-Hero"}]},
+    {"id": 21, "name": "Spider-Man 2099", "year_began": 1992, "issue_count": 46, "volume": 1, "desc": "",
+     "publisher": {"id": 1, "name": "Marvel"}, "series_type": None, "genres": [{"id": 1, "name": "Super-Hero"}]},
+    {"id": 22, "name": "Batman", "year_began": 1940, "issue_count": 713, "volume": 1, "desc": "",
+     "publisher": {"id": 2, "name": "DC Comics"}, "series_type": None, "genres": [{"id": 1, "name": "Super-Hero"}]},
+]
 METRON = [
     {
         "id": 1, "name": "Daredevil", "year_began": 1964, "year_end": 1998, "issue_count": 380, "volume": 1,
@@ -166,3 +174,53 @@ def test_api(engine, monkeypatch):
         assert client.get("/api/search", params={"q": "x"}).status_code == 422
     finally:
         app_module.app.dependency_overrides.clear()
+
+
+def test_alias_expansion():
+    from backend.aliases import expand, normalize
+    assert expand("web swinger") == ["Spider-Man"]
+    assert expand("the Dark Knight in Gotham") == ["Batman", "Gotham"]
+    assert expand("a quiet cooking story") == []
+    assert normalize("The Amazing Spider-Man!") == "the amazing spiderman"
+
+
+@pytest.fixture()
+def hero_engine(raw_dir, tmp_path):
+    with (raw_dir / "metron.jsonl").open("a") as fh:
+        fh.write("\n" + "\n".join(json.dumps(s) for s in SPIDEY))
+    build(raw_dir, tmp_path / "heroes", embedder=HashingEmbedder())
+    return SearchEngine.load(tmp_path / "heroes")
+
+
+def test_nickname_finds_spider_man(hero_engine):
+    res = hero_engine.search("web swinger", k=3)
+    assert res[0]["title"] == "The Amazing Spider-Man"  # popular flagship beats Spider-Man 2099
+    assert res[1]["title"] == "Spider-Man 2099"
+
+
+def test_title_typed_without_hyphen(hero_engine):
+    assert hero_engine.search("spiderman", k=1)[0]["title"] == "The Amazing Spider-Man"
+    assert hero_engine.search("dark knight", k=1)[0]["title"] == "Batman"
+
+
+def test_wiki_extract_fills_missing_description(raw_dir):
+    with (raw_dir / "metron.jsonl").open("a") as fh:
+        fh.write("\n" + json.dumps(SPIDEY[0]))
+    (raw_dir / "wiki.jsonl").write_text(json.dumps({"id": "mt-20", "wiki_extract": "Peter Parker swings across New York.", "wiki_url": "https://en.wikipedia.org/wiki/The_Amazing_Spider-Man"}))
+    c = next(c for c in build_catalog(raw_dir) if c["id"] == "mt-20")
+    assert c["description"] == "Peter Parker swings across New York."
+    assert "Peter Parker" in c["doc"] and c["wiki_url"].endswith("Spider-Man")
+
+
+def test_wiki_lookup_rejects_unrelated_page():
+    import httpx
+    from backend.ingest import wiki
+    c = {"title": "The Amazing Spider-Man", "kind": "Marvel", "publisher": "Marvel", "description": ""}
+
+    def handler(request):
+        title = "The Amazing Spider-Man" if "Spider" in str(request.url) else "Unrelated"
+        return httpx.Response(200, json={"query": {"pages": {"1": {"title": title, "extract": "Intro.", "fullurl": "u"}}}})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        assert wiki.lookup(client, c)["wiki_title"] == "The Amazing Spider-Man"
+        assert wiki.lookup(client, {**c, "title": "Zzz"}) is None

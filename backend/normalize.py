@@ -99,4 +99,7 @@ def semantic_doc(c: dict) -> str:
         parts.append(f"Publisher: {c['publisher']}.")
     if c["description"]:
         parts.append(c["description"][:1200])
+    extract = c.get("wiki_extract")
+    if extract and extract != c["description"]:
+        parts.append(extract[:600])
     return " ".join(parts)

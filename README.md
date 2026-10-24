@@ -26,6 +26,7 @@ v1 below runs on a synthetic 10k catalog. v2 rebuilds the app on **real data**:
 - **Manga / manhwa / manhua** from the public [AniList](https://anilist.co) GraphQL API (descriptions, genres, crowd-voted tags, covers, scores)
 - **Western comics** from [Metron](https://metron.cloud) (series, publishers, genres, issue #1 covers), split into **Marvel**, **DC** and other **Western** publishers
 - **Backend:** FastAPI (`backend/`) with the same text-first, vibe-tuned ranking, now driven by real tags
+- **Search that knows fandom:** nicknames like "web swinger" or "dark knight" expand to Spider-Man / Batman (`backend/aliases.py`), titles match even when typed as "spiderman", and well-known flagship series win ties
 - **Frontend:** Next.js (`frontend/`) with search, tone/scope sliders, type filter, detail pages and "if you like this" recommendations
 
 ```
@@ -52,6 +53,9 @@ python -m backend.ingest.anilist --pages 40
 export METRON_USERNAME=your_user METRON_PASSWORD=your_pass
 # picks the longest-running Marvel, DC and other Western series; resumable, rerun if the network drops
 python -m backend.ingest.metron --marvel 500 --dc 500 --others 500 --covers
+
+# optional but recommended: Wikipedia intros for titles with thin descriptions (resumable)
+python -m backend.ingest.wiki
 
 # 3. Build the index
 python -m backend.build_index
