@@ -19,6 +19,61 @@
 
 ---
 
+## 🚀 v2 (in progress): real data, Next.js + FastAPI
+
+v1 below runs on a synthetic 10k catalog. v2 rebuilds the app on **real data**:
+
+- **Manga / manhwa / manhua** from the public [AniList](https://anilist.co) GraphQL API (descriptions, genres, crowd-voted tags, covers, scores)
+- **Western comics** from [Metron](https://metron.cloud) (series, publishers, genres, issue #1 covers)
+- **Backend:** FastAPI (`backend/`) with the same text-first, vibe-tuned ranking, now driven by real tags
+- **Frontend:** Next.js (`frontend/`) with search, tone/scope sliders, type filter, detail pages and "if you like this" recommendations
+
+```
+backend/
+  ingest/anilist.py   fetch manga data (no key needed)
+  ingest/metron.py    fetch Western series (free Metron account)
+  normalize.py        map both sources onto one schema
+  vibe.py             tone / scope from genres + tags
+  build_index.py      merge, embed (all-MiniLM-L6-v2), save
+  engine.py           search, similar, trending
+  app.py              REST API
+frontend/             Next.js app router UI
+```
+
+### Run it locally
+
+```bash
+# 1. Python deps
+pip install -r backend/requirements.txt
+
+# 2. Fetch data (AniList: ~2,000 titles in about a minute)
+python -m backend.ingest.anilist --pages 40
+# Metron needs credentials (PowerShell: $env:METRON_USERNAME="..."; $env:METRON_PASSWORD="...")
+export METRON_USERNAME=your_user METRON_PASSWORD=your_pass
+python -m backend.ingest.metron --limit 300 --covers
+
+# 3. Build the index
+python -m backend.build_index
+
+# 4. Start the API
+uvicorn backend.app:app --reload --port 8000
+
+# 5. Start the web app (new terminal)
+cd frontend && npm install && npm run dev   # http://localhost:3000
+```
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/search?q=&tone=&scope=&kind=&k=` | semantic search with vibe sliders and type filter |
+| `GET /api/comics/{id}` | one title |
+| `GET /api/comics/{id}/similar` | nearest neighbours in embedding space |
+| `GET /api/trending?kind=` | most popular titles |
+| `GET /api/stats`, `GET /api/health` | catalog counts, readiness |
+
+Backend tests: `python -m pytest backend/tests` (use a hashing embedder, no model download).
+
+---
+
 ## ✨ What it does
 
 Keyword search fails on queries like *"a blind lawyer fighting crime in Hell's Kitchen"*. IMAZINTHECOMICS embeds every title in a **10,000-comic catalog** into a 384-dimensional vector space and ranks by meaning, then lets you steer results with two **vibe sliders**:

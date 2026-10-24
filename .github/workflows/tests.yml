@@ -21,3 +21,26 @@ jobs:
         if: always()
         run: |
           { echo "## Coverage"; echo '```'; sed -n '/coverage:/,/TOTAL/p' pytest-output.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+  backend-v2:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install fastapi httpx numpy pytest
+      - run: python -m pytest backend/tests -v -p no:cacheprovider
+
+  frontend-v2:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci
+      - run: npm run build
