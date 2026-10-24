@@ -44,7 +44,7 @@ def search(
     q: str = Query(..., min_length=2, max_length=300),
     tone: float = Query(0.5, ge=0, le=1),
     scope: float = Query(0.5, ge=0, le=1),
-    kind: str | None = Query(None, pattern="^(all|Manga|Manhwa|Manhua|Western|One-shot|Light novel)$"),
+    kind: str | None = Query(None, pattern="^(all|Manga|Manhwa|Manhua|Marvel|DC|Western|One-shot|Light novel)$"),
     k: int = Query(12, ge=1, le=50),
     engine: SearchEngine = Depends(get_engine),
 ):

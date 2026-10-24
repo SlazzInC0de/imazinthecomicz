@@ -8,7 +8,7 @@ from backend import app as app_module
 from backend.build_index import build, build_catalog
 from backend.embedder import HashingEmbedder
 from backend.engine import SearchEngine
-from backend.normalize import clean_text, from_anilist, from_metron
+from backend.normalize import clean_text, from_anilist, from_metron, western_kind
 from backend.vibe import scope_score, tone_score
 
 ANILIST = [
@@ -82,8 +82,16 @@ def test_from_anilist_maps_fields():
 
 def test_from_metron_maps_fields():
     c = from_metron(METRON[0])
-    assert c["id"] == "mt-1" and c["kind"] == "Western" and c["publisher"] == "Marvel"
+    assert c["id"] == "mt-1" and c["kind"] == "Marvel" and c["publisher"] == "Marvel"
     assert c["status"] == "Finished" and c["genres"] == ["Super-Hero", "Crime"]
+
+
+def test_western_kind_split():
+    assert western_kind("Marvel") == "Marvel"
+    assert western_kind("DC Comics") == "DC"
+    assert western_kind("Image") == "Western"
+    assert western_kind("Dark Horse Comics") == "Western"
+    assert western_kind(None) == "Western"
 
 
 def test_vibe_scores_are_bounded_and_ordered():
@@ -126,6 +134,7 @@ def test_api(engine, monkeypatch):
     client = TestClient(app_module.app)
     try:
         assert client.get("/api/health").status_code == 200
+        assert client.get("/api/search", params={"q": "lawyer", "kind": "Marvel"}).json()["results"][0]["title"] == "Daredevil"
         r = client.get("/api/search", params={"q": "pirate treasure", "k": 2})
         assert r.status_code == 200 and r.json()["results"][0]["title"] == "One Piece"
         assert client.get("/api/comics/al-30013").json()["title"] == "One Piece"

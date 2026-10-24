@@ -51,13 +51,23 @@ def from_anilist(m: dict) -> dict:
     }
 
 
+def western_kind(publisher: str | None) -> str:
+    """Marvel and DC get their own bucket, every other Western publisher stays 'Western'."""
+    name = (publisher or "").strip().lower()
+    if name.startswith("marvel"):
+        return "Marvel"
+    if name == "dc" or name.startswith("dc "):
+        return "DC"
+    return "Western"
+
+
 def from_metron(s: dict) -> dict:
     publisher = (s.get("publisher") or {}).get("name")
     year_began, year_end = s.get("year_began"), s.get("year_end")
     return {
         "id": f"mt-{s['id']}",
         "source": "metron",
-        "kind": "Western",
+        "kind": western_kind(publisher),
         "title": s.get("name") or "Untitled",
         "alt_title": None,
         "description": clean_text(s.get("desc")),

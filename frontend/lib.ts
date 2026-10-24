@@ -34,4 +34,4 @@ export async function api<T>(path: string): Promise<T> {
   return res.json();
 }
 
-export const KINDS = ["all", "Manga", "Manhwa", "Manhua", "Western"] as const;
+export const KINDS = ["all", "Manga", "Manhwa", "Manhua", "Marvel", "DC", "Western"] as const;

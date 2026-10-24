@@ -24,7 +24,7 @@
 v1 below runs on a synthetic 10k catalog. v2 rebuilds the app on **real data**:
 
 - **Manga / manhwa / manhua** from the public [AniList](https://anilist.co) GraphQL API (descriptions, genres, crowd-voted tags, covers, scores)
-- **Western comics** from [Metron](https://metron.cloud) (series, publishers, genres, issue #1 covers)
+- **Western comics** from [Metron](https://metron.cloud) (series, publishers, genres, issue #1 covers), split into **Marvel**, **DC** and other **Western** publishers
 - **Backend:** FastAPI (`backend/`) with the same text-first, vibe-tuned ranking, now driven by real tags
 - **Frontend:** Next.js (`frontend/`) with search, tone/scope sliders, type filter, detail pages and "if you like this" recommendations
 

@@ -102,6 +102,8 @@ main { max-width: 1180px; margin: 0 auto; padding: 0 16px 48px; }
 .badge-manhwa { background: var(--cyan); color: #141414; }
 .badge-manhua { background: var(--red); }
 .badge-western { background: var(--yellow); color: #141414; }
+.badge-marvel { background: #ec1d24; color: #fff; }
+.badge-dc { background: #0476f2; color: #fff; }
 .rank {
   position: absolute; bottom: 8px; right: 8px; font-family: "Bangers", cursive; font-size: 1.4rem;
   background: var(--yellow); color: #141414; border: 2px solid #141414; padding: 0 8px; transform: rotate(4deg);
