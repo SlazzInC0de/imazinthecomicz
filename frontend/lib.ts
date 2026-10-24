@@ -34,4 +34,9 @@ export async function api<T>(path: string): Promise<T> {
   return res.json();
 }
 
+/** Wikipedia "Go" search: opens the article directly when the title matches, otherwise shows search results. */
+export function wikiUrl(title: string): string {
+  return `https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(title)}&go=Go`;
+}
+
 export const KINDS = ["all", "Manga", "Manhwa", "Manhua", "Marvel", "DC", "Western"] as const;

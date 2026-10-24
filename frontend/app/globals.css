@@ -136,6 +136,10 @@ main { max-width: 1180px; margin: 0 auto; padding: 0 16px 48px; }
   display: inline-block; margin-top: 16px; font-weight: 700; background: var(--yellow); color: #141414;
   border: 2px solid #141414; padding: 6px 12px; text-decoration: none;
 }
+.links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.links .source-link { margin-top: 0; }
+.source-link.wiki { background: var(--card); color: var(--ink); border-color: var(--ink); }
+.source-link.wiki:hover, .source-link:hover { transform: translate(-2px, -2px); box-shadow: 3px 3px 0 var(--ink); }
 .detail-missing { text-align: center; padding: 60px 0; }
 .detail-missing h2 { font-family: "Bangers", cursive; font-size: 3rem; margin: 0; }
 .footer { text-align: center; color: var(--muted); font-size: 0.85rem; padding: 24px 16px 40px; }

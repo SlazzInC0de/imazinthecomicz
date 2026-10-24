@@ -1,5 +1,5 @@
 import ComicCard from "../../ComicCard";
-import { api, type Comic } from "@/lib";
+import { api, wikiUrl, type Comic } from "@/lib";
 
 export default async function ComicPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -58,11 +58,16 @@ export default async function ComicPage({ params }: { params: Promise<{ id: stri
               Scope <meter min={0} max={1} value={comic.scope} /> {comic.scope > 0.6 ? "cosmic" : comic.scope < 0.4 ? "street-level" : "mid"}
             </div>
           </div>
-          {comic.url && (
-            <a className="source-link" href={comic.url} target="_blank" rel="noreferrer">
-              View on {comic.source === "anilist" ? "AniList" : "Metron"} ↗
+          <div className="links">
+            {comic.url && (
+              <a className="source-link" href={comic.url} target="_blank" rel="noreferrer">
+                View on {comic.source === "anilist" ? "AniList" : "Metron"} ↗
+              </a>
+            )}
+            <a className="source-link wiki" href={wikiUrl(comic.title)} target="_blank" rel="noreferrer">
+              Wikipedia ↗
             </a>
-          )}
+          </div>
         </div>
       </article>
 
