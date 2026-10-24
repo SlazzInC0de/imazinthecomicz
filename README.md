@@ -50,7 +50,8 @@ pip install -r backend/requirements.txt
 python -m backend.ingest.anilist --pages 40
 # Metron needs credentials (PowerShell: $env:METRON_USERNAME="..."; $env:METRON_PASSWORD="...")
 export METRON_USERNAME=your_user METRON_PASSWORD=your_pass
-python -m backend.ingest.metron --limit 300 --covers
+# picks the longest-running Marvel, DC and other Western series; resumable, rerun if the network drops
+python -m backend.ingest.metron --marvel 500 --dc 500 --others 500 --covers
 
 # 3. Build the index
 python -m backend.build_index

@@ -94,6 +94,28 @@ def test_western_kind_split():
     assert western_kind(None) == "Western"
 
 
+def test_pick_series_ranks_by_issue_count_per_bucket():
+    from backend.ingest.metron import pick_series
+    index = [
+        {"id": 1, "issue_count": 900, "publisher": {"name": "Marvel"}},
+        {"id": 2, "issue_count": 50, "publisher": {"name": "Marvel"}},
+        {"id": 3, "issue_count": 1000, "publisher": {"name": "DC Comics"}},
+        {"id": 4, "issue_count": 300, "publisher": {"name": "Image"}},
+        {"id": 5, "issue_count": 1, "publisher": {"name": "Image"}},
+    ]
+    picked = pick_series(index, marvel=1, dc=5, others=5, min_issues=3)
+    assert [s["id"] for s in picked] == [1, 3, 4]
+
+
+def test_same_title_different_years_are_kept(tmp_path):
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    vol1 = {**METRON[0], "id": 10, "year_began": 1964}
+    vol2 = {**METRON[0], "id": 11, "year_began": 2016, "volume": 6}
+    (raw / "metron.jsonl").write_text(json.dumps(vol1) + "\n" + json.dumps(vol2))
+    assert len(build_catalog(raw)) == 2
+
+
 def test_vibe_scores_are_bounded_and_ordered():
     dark = tone_score(["Horror", "Psychological"], ["Gore"])
     light = tone_score(["Comedy", "Slice of Life"], [])

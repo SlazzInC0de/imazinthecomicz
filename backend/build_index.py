@@ -29,7 +29,7 @@ def build_catalog(raw_dir: Path = RAW_DIR) -> list[dict]:
     catalog += [from_metron(s) for s in _read_jsonl(raw_dir / "metron.jsonl")]
     seen, unique = set(), []
     for c in catalog:
-        key = (c["title"].lower(), c["source"])
+        key = (c["title"].lower(), c["source"], c["year"])
         if key in seen:
             continue
         seen.add(key)

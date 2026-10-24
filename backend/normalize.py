@@ -69,7 +69,7 @@ def from_metron(s: dict) -> dict:
         "source": "metron",
         "kind": western_kind(publisher),
         "title": s.get("name") or "Untitled",
-        "alt_title": None,
+        "alt_title": f"Vol. {s['volume']} ({year_began})" if s.get("volume") and year_began else None,
         "description": clean_text(s.get("desc")),
         "genres": [g["name"] for g in s.get("genres") or []],
         "tags": [(s.get("series_type") or {}).get("name")] if s.get("series_type") else [],
