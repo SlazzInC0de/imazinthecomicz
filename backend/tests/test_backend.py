@@ -8,7 +8,7 @@ from backend import app as app_module
 from backend.build_index import build, build_catalog
 from backend.embedder import HashingEmbedder
 from backend.engine import SearchEngine
-from backend.normalize import clean_text, from_anilist, from_metron, western_kind
+from backend.normalize import clean_text, from_anilist, from_metron, is_comic_page, western_kind
 from backend.vibe import scope_score, tone_score
 
 ANILIST = [
@@ -206,9 +206,9 @@ def test_title_typed_without_hyphen(hero_engine):
 def test_wiki_extract_fills_missing_description(raw_dir):
     with (raw_dir / "metron.jsonl").open("a") as fh:
         fh.write("\n" + json.dumps(SPIDEY[0]))
-    (raw_dir / "wiki.jsonl").write_text(json.dumps({"id": "mt-20", "wiki_extract": "Peter Parker swings across New York.", "wiki_url": "https://en.wikipedia.org/wiki/The_Amazing_Spider-Man"}))
+    (raw_dir / "wiki.jsonl").write_text(json.dumps({"id": "mt-20", "wiki_extract": "The Amazing Spider-Man is a comic book series. Peter Parker swings across New York.", "wiki_url": "https://en.wikipedia.org/wiki/The_Amazing_Spider-Man"}))
     c = next(c for c in build_catalog(raw_dir) if c["id"] == "mt-20")
-    assert c["description"] == "Peter Parker swings across New York."
+    assert c["description"].endswith("Peter Parker swings across New York.")
     assert "Peter Parker" in c["doc"] and c["wiki_url"].endswith("Spider-Man")
 
 
@@ -219,11 +219,29 @@ def test_wiki_lookup_rejects_unrelated_page():
 
     def handler(request):
         title = "The Amazing Spider-Man" if "Spider" in str(request.url) else "Unrelated"
-        return httpx.Response(200, json={"query": {"pages": {"1": {"title": title, "extract": "Intro.", "fullurl": "u"}}}})
+        return httpx.Response(200, json={"query": {"pages": {"1": {"title": title, "extract": "The Amazing Spider-Man is an American comic book series.", "fullurl": "u"}}}})
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
         assert wiki.lookup(client, c)["wiki_title"] == "The Amazing Spider-Man"
         assert wiki.lookup(client, {**c, "title": "Zzz"}) is None
+
+
+@pytest.mark.parametrize("title, extract, ok", [
+    ("Iron Man (comic book)", "Iron Man is a comic book series published by Marvel Comics.", True),
+    ("Whisper Me a Love Song", "Whisper Me a Love Song is a Japanese manga series by Eku Takeshima.", True),
+    ("Eerie (magazine)", "Eerie is an American magazine of horror comics introduced in 1966.", True),
+    ("Spider-Man: Homecoming", "Spider-Man: Homecoming is a 2017 American superhero film based on the Marvel Comics character.", False),
+    ("Death Note (2006 TV series)", "Death Note is a Japanese anime television series based on the manga.", False),
+    ("Among Us", "Among Us is a 2018 online multiplayer social deduction game.", False),
+    ("20th Century Studios", "20th Century Studios, Inc. is an American film production company.", False),
+])
+def test_wiki_page_must_be_about_the_comic(title, extract, ok):
+    assert is_comic_page(title, extract) is ok
+
+
+def test_build_catalog_drops_film_pages(raw_dir):
+    (raw_dir / "wiki.jsonl").write_text(json.dumps({"id": "mt-1", "wiki_title": "Some Film", "wiki_extract": "Some Film is a 2017 American superhero film."}))
+    assert all(c["wiki_extract"] is None for c in build_catalog(raw_dir))
 
 
 def test_daily_pick_and_random(engine):

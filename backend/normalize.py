@@ -8,6 +8,25 @@ FORMAT_LABELS = {"MANGA": "Manga", "ONE_SHOT": "One-shot", "NOVEL": "Light novel
 COUNTRY_FORMAT = {"KR": "Manhwa", "CN": "Manhua", "TW": "Manhua"}
 
 
+# A Wikipedia match is only kept when its page is about the comic, not a film,
+# show, game or company that shares the name. The subject (whose name may
+# contain "song" or "film") is skipped, and so is anything after "based on".
+_COMIC_WORDS = re.compile(r"comic|manga|manhwa|manhua|graphic novel|webtoon|webcomic|superhero(?:es|ine)?(?! film)|supervillain|\bcharacters?\b")
+_OTHER_WORDS = re.compile(r"\bfilms?\b|television|\btv\b|anime series|animation series|video game|\bgame\b|\bstudios?\b|\balbums?\b|\bsongs?\b|\bnovels?\b|\bband\b|\bmusical\b|\bfranchise\b|\bcompany\b")
+_OTHER_TITLE = re.compile(r"\((?:[^)]*\b)?(film|films|film series|tv series|television series|video game|novel|album|song|miniseries|franchise)\)", re.I)
+
+
+def is_comic_page(title: str, extract: str) -> bool:
+    if _OTHER_TITLE.search(title or ""):
+        return False
+    head = (extract or "")[:400].lower()
+    verb = re.search(r"\b(is|are|was|were)\b", head)
+    head = head[verb.end():] if verb else head
+    head = re.split(r" based on | adapted from | adaptation of | inspired by ", head, maxsplit=1)[0]
+    comic, other = _COMIC_WORDS.search(head), _OTHER_WORDS.search(head)
+    return bool(comic) and (not other or comic.start() < other.start())
+
+
 def clean_text(text: Any) -> str:
     if not text:
         return ""

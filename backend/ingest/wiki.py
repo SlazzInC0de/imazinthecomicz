@@ -18,6 +18,7 @@ import httpx
 
 from ..aliases import normalize
 from ..build_index import build_catalog
+from ..normalize import is_comic_page
 
 API_URL = "https://en.wikipedia.org/w/api.php"
 RAW_DIR = Path(__file__).resolve().parents[1] / "data" / "raw"
@@ -54,7 +55,7 @@ def lookup(client: httpx.Client, c: dict) -> dict | None:
         return None
     pages = (resp.json().get("query") or {}).get("pages") or {}
     for page in pages.values():
-        if page.get("extract") and looks_right(c, page.get("title", "")):
+        if page.get("extract") and looks_right(c, page.get("title", "")) and is_comic_page(page.get("title", ""), page["extract"]):
             return {"wiki_title": page["title"], "wiki_extract": page["extract"].strip(), "wiki_url": page.get("fullurl")}
     return None
 

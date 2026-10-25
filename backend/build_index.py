@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 
 from .embedder import get_embedder
-from .normalize import from_anilist, from_metron, semantic_doc
+from .normalize import from_anilist, from_metron, is_comic_page, semantic_doc
 from .vibe import scope_score, tone_score
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
@@ -27,7 +27,10 @@ def _read_jsonl(path: Path) -> list[dict]:
 def build_catalog(raw_dir: Path = RAW_DIR) -> list[dict]:
     catalog = [from_anilist(m) for m in _read_jsonl(raw_dir / "anilist.jsonl")]
     catalog += [from_metron(s) for s in _read_jsonl(raw_dir / "metron.jsonl")]
-    wiki = {w["id"]: w for w in _read_jsonl(raw_dir / "wiki.jsonl") if w.get("wiki_extract")}
+    wiki = {
+        w["id"]: w for w in _read_jsonl(raw_dir / "wiki.jsonl")
+        if w.get("wiki_extract") and is_comic_page(w.get("wiki_title", ""), w["wiki_extract"])
+    }
     seen, unique = set(), []
     for c in catalog:
         key = (c["title"].lower(), c["source"], c["year"])
