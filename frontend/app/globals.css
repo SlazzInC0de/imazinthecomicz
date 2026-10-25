@@ -142,7 +142,8 @@ button { font: inherit; color: inherit; }
   position: relative; max-width: 540px; margin: 0;
   background: #fff; border: var(--line) solid var(--ink);
   border-radius: 46% 54% 48% 52% / 52% 46% 54% 48%;
-  padding: var(--s4) var(--s5);
+  /* an ellipse only holds text in its middle ~70%, so pad the sides in proportion */
+  padding: clamp(28px, 7%, 44px) clamp(40px, 13%, 76px) clamp(32px, 8%, 52px);
 }
 .hero-say::after {
   content: ""; position: absolute; right: 70px; bottom: -28px; width: 38px; height: 32px; background: #fff;
