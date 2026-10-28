@@ -19,6 +19,10 @@
 
 ---
 
+**Contents:** [v2: real data](#-v2-in-progress-real-data-nextjs--fastapi) · [What it does](#-what-it-does) · [How ranking works](#-how-ranking-works) · [Evaluation](#-evaluation) · [Design decisions](#-design-decisions) · [Engineering notes](#-engineering-notes) · [Run v1 locally (Streamlit)](#-run-v1-locally-streamlit) · [Dataset](#️-dataset) · [Project structure](#-project-structure) · [Roadmap](#️-roadmap) · [Security and privacy](#-security-and-privacy) · [License](#-license)
+
+---
+
 ## 🚀 v2 (in progress): real data, Next.js + FastAPI
 
 v1 below runs on a synthetic 10k catalog. v2 rebuilds the app on **real data**:
@@ -150,7 +154,7 @@ On paraphrase queries alone, semantic search reaches P@5 **0.39 vs 0.22** for TF
 - **Safe rendering**: every catalog value is HTML-escaped before it is injected into the custom panel markup.
 - **Tested without the model**: 9 pytest cases (97% coverage of `engine.py` and `vibe.py`) stub the encoder, so ranking logic runs in CI in under a second.
 
-## 🚀 Run locally
+## 🚀 Run v1 locally (Streamlit)
 
 ```bash
 git clone https://github.com/SlazzInC0de/imazinthecomicz.git
@@ -189,6 +193,8 @@ python eval/evaluate.py      # downloads the model on first run
 
 ```text
 imazinthecomicz/
+├── backend/             # v2: FastAPI API, ingest, normalize, index builder
+├── frontend/            # v2: Next.js web app
 ├── imazinthecomics.py   # Streamlit app (UI + styling)
 ├── engine.py            # SemanticMatrixEngine: load index, rank queries
 ├── vibe.py              # Tone / scope feature derivation
@@ -209,6 +215,13 @@ imazinthecomicz/
 - [ ] Learn tone and scope from plot summaries instead of metadata rules
 - [ ] Filters for format, language and age rating
 - [ ] FAISS index for catalogs beyond 100k titles
+
+## 🔒 Security and privacy
+
+- No accounts and no user data: search queries are used to rank results and are not stored.
+- Every catalogue value is HTML-escaped before it is rendered.
+- API credentials (Metron) are read from environment variables, never committed.
+- Found a vulnerability? Please report it privately as described in [SECURITY.md](SECURITY.md).
 
 ## 📄 License
 
